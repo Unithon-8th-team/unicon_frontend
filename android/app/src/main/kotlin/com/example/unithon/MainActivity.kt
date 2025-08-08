@@ -1,4 +1,4 @@
-package com.example.unicon_frontend
+package com.example.unithon
 
 import io.flutter.embedding.android.FlutterActivity
 

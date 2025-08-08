@@ -1,6 +1,6 @@
 {
-    "name": "unicon_frontend",
-    "short_name": "unicon_frontend",
+    "name": "unithon",
+    "short_name": "unithon",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
