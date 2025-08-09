@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart';
 import '../controller/login_controller.dart';
-import '../../home/view/home_screen.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -20,12 +19,14 @@ class LoginScreen extends StatelessWidget {
                   ? const CircularProgressIndicator()
                   : ElevatedButton(
                       onPressed: () async {
-                        final success = await controller.loginWithKakao();
+                        // 실제 API 연결용 (웹에서는 임시 로그인, 모바일에서는 WebView)
+                        final success = await controller.kakaoLogin(context);
+                        
                         if (success) {
-                          // 로그인 성공 시 홈 화면으로 이동
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(builder: (context) => const HomeScreen()),
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('로그인 성공! 환영합니다, ${controller.user?.nickname ?? "사용자"}님!')),
                           );
+                          Navigator.pushReplacementNamed(context, '/home');
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('카카오 로그인 실패')),
