@@ -11,6 +11,15 @@ class ShopScreen extends StatefulWidget {
 
 class _ShopScreenState extends State<ShopScreen> {
   int _selectedCategory = 0; // 0: 헤어, 1: 옷, 2: 무기
+  int _selectedItemIndex = -1; // 선택된 아이템 인덱스 (-1은 선택 없음)
+  bool _showMyItemsOnly = false; // 나의 아이템만 보기 토글 상태
+  
+  // 현재 적용된 아이템들 (카테고리별로 저장)
+  final Map<int, int> _appliedItems = {
+    0: -1, // 헤어: 기본값 (적용 안됨)
+    1: -1, // 옷: 기본값 (적용 안됨)
+    2: -1, // 무기: 기본값 (적용 안됨)
+  };
 
   // 카테고리별 아이템 데이터
   final List<List<String>> _categoryItems = [
@@ -50,6 +59,70 @@ class _ShopScreenState extends State<ShopScreen> {
     'assets/icons/wepon.png',
   ];
 
+  // 현재 적용된 아이템들로 캐릭터 이미지 생성
+  Widget _buildCharacterWithItems() {
+    return Stack(
+      alignment: Alignment.bottomCenter,
+      children: [
+        // 캐릭터 그림자 (타원형)
+        Positioned(
+          bottom: 4,
+          child: Container(
+            width: 120,
+            height: 24,
+            decoration: BoxDecoration(
+              color: const Color(0x4D060606), // #0606064D
+              borderRadius: BorderRadius.all(Radius.elliptical(80, 24)),
+            ),
+          ),
+        ),
+        // 기본 캐릭터
+        Image.asset(
+          'assets/images/character_1.png',
+          width: 130,
+          height: 130,
+          fit: BoxFit.contain,
+        ),
+        // 헤어 아이템 (캐릭터 위에 오버레이)
+        if (_appliedItems[0] != null && _appliedItems[0]! >= 0)
+          Positioned(
+            top: -26, // 헤어는 더 위쪽에 위치
+            left: -21, // 좌우 중앙 정렬
+            child: Image.asset(
+              _categoryItems[0][_appliedItems[0]!],
+              width: 162, // 헤어는 약간 더 크게
+              height: 162,
+              fit: BoxFit.contain,
+            ),
+          ),
+        // 옷 아이템 (캐릭터 위에 오버레이)
+        if (_appliedItems[1] != null && _appliedItems[1]! >= 0)
+          Positioned(
+            top: -28, // 옷은 헤어보다 아래쪽에 위치
+            left: -26.8, // 좌우 중앙 정렬
+            child: Image.asset(
+              _categoryItems[1][_appliedItems[1]!],
+              width: 172, // 옷은 캐릭터와 비슷한 크기
+              height: 172,
+              fit: BoxFit.contain,
+            ),
+          ),
+        // 무기 아이템 (캐릭터 위에 오버레이)
+        if (_appliedItems[2] != null && _appliedItems[2]! >= 0)
+          Positioned(
+            top: 20, // 무기는 가장 아래쪽에 위치
+            left: 0, // 좌우 중앙 정렬
+            child: Image.asset(
+              _categoryItems[2][_appliedItems[2]!],
+              width: 130, // 무기는 기본 크기
+              height: 130,
+              fit: BoxFit.contain,
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -67,7 +140,7 @@ class _ShopScreenState extends State<ShopScreen> {
                   Row(
                     children: [
                       Image.asset(
-                        'assets/images/fire_icon.png',
+                        'assets/icons/fire_icon.png',
                         width: 20,
                         height: 20,
                       ),
@@ -76,7 +149,7 @@ class _ShopScreenState extends State<ShopScreen> {
                         '200',
                         style: TextStyle(
                           color: Colors.black,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w600,
                           fontSize: 16,
                         ),
                       ),
@@ -90,13 +163,42 @@ class _ShopScreenState extends State<ShopScreen> {
                         style: TextStyle(
                           color: Colors.black,
                           fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Switch(
-                        value: false,
-                        onChanged: (value) {},
-                        activeColor: Colors.orange,
+                      Stack(
+                        children: [
+                          // 배경 토글 (항상 표시)
+                          Image.asset(
+                            'assets/icons/toggle_off.png',
+                            width: 50,
+                            height: 50,
+                            fit: BoxFit.contain,
+                          ),
+                          // 활성화된 토글 (조건부로 표시)
+                          if (_showMyItemsOnly)
+                            Positioned(
+                              left: 8.5,
+                              top: 0,
+                              child: Image.asset(
+                                'assets/icons/toggle_on.png',
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          // 터치 영역
+                          Positioned.fill(
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _showMyItemsOnly = !_showMyItemsOnly;
+                                });
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -114,7 +216,7 @@ class _ShopScreenState extends State<ShopScreen> {
                   '${_categoryNames[_selectedCategory]} 고르기',
                   style: const TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w600,
                     color: Colors.black,
                   ),
                 ),
@@ -124,6 +226,7 @@ class _ShopScreenState extends State<ShopScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     color: Colors.black,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -170,31 +273,8 @@ class _ShopScreenState extends State<ShopScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // 캐릭터와 그림자를 겹치게 배치
-                            Stack(
-                              alignment: Alignment.bottomCenter,
-                              children: [
-                                // 캐릭터 그림자 (타원형)
-                                Positioned(
-                                  bottom: 4,
-                                  child: Container(
-                                    width: 120,
-                                    height: 24,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0x4D060606), // #0606064D
-                                      borderRadius: BorderRadius.all(Radius.elliptical(80, 24)),
-                                    ),
-                                  ),
-                                ),
-                                // 캐릭터 이미지
-                                Image.asset(
-                                  'assets/images/character_1.png',
-                                  width: 130,
-                                  height: 130,
-                                  fit: BoxFit.contain,
-                                ),
-                              ],
-                            ),
+                            // 현재 적용된 아이템들로 캐릭터 생성
+                            _buildCharacterWithItems(),
                           ],
                         ),
                       ),
@@ -233,17 +313,17 @@ class _ShopScreenState extends State<ShopScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          _buildShopItem(_categoryItems[_selectedCategory][0], 200),
-                          _buildShopItem(_categoryItems[_selectedCategory][1], 200),
-                          _buildShopItem(_categoryItems[_selectedCategory][2], 200),
+                          _buildShopItem(_categoryItems[_selectedCategory][0], 200, 0),
+                          _buildShopItem(_categoryItems[_selectedCategory][1], 200, 1),
+                          _buildShopItem(_categoryItems[_selectedCategory][2], 200, 2),
                         ],
                       ),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          _buildShopItem(_categoryItems[_selectedCategory][3], 200),
-                          _buildShopItem(_categoryItems[_selectedCategory][4], 200),
-                          _buildShopItem(_categoryItems[_selectedCategory][5], 200),
+                          _buildShopItem(_categoryItems[_selectedCategory][3], 200, 3),
+                          _buildShopItem(_categoryItems[_selectedCategory][4], 200, 4),
+                          _buildShopItem(_categoryItems[_selectedCategory][5], 200, 5),
                         ],
                       ),
                     ],
@@ -259,14 +339,18 @@ class _ShopScreenState extends State<ShopScreen> {
                           widget.onBackToHome!();
                         }
                       },
-                      icon: const Icon(Icons.close, size: 30),
+                      icon: Image.asset(
+                        'assets/icons/back_btn.png',
+                        width: 40,
+                        height: 40,
+                      ),
                     ),
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {},
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor: const Color(0xFF2F2F2F),
+                          padding: const EdgeInsets.symmetric(vertical: 8), // 구입버튼 크기
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
                           ),
@@ -275,9 +359,9 @@ class _ShopScreenState extends State<ShopScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Image.asset(
-                              'assets/images/fire_icon.png',
-                              width: 20,
-                              height: 20,
+                              'assets/icons/fire_icon.png',
+                              width: 30,
+                              height: 30,
                             ),
                             const SizedBox(width: 8),
                             const Text(
@@ -293,8 +377,21 @@ class _ShopScreenState extends State<ShopScreen> {
                       ),
                     ),
                     IconButton(
-                      onPressed: () {},
-                      icon: const Icon(Icons.undo, size: 30),
+                      onPressed: () {
+                        setState(() {
+                          // 착용하고 있던 모든 아이템 해제
+                          _appliedItems[0] = -1; // 헤어 해제
+                          _appliedItems[1] = -1; // 옷 해제
+                          _appliedItems[2] = -1; // 무기 해제
+                          // 선택된 아이템도 초기화
+                          _selectedItemIndex = -1;
+                        });
+                      },
+                      icon: Image.asset(
+                        'assets/icons/undo_btn.png',
+                        width: 40,
+                        height: 40,
+                      ),
                     ),
                   ],
                 ),
@@ -327,56 +424,80 @@ class _ShopScreenState extends State<ShopScreen> {
     );
   }
 
-  Widget _buildShopItem(String imagePath, int price) {
-    return Container(
-      width: 80,
-      height: 110,
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Image.asset(
-                imagePath,
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(8),
-                bottomRight: Radius.circular(8),
-              ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset(
-                  'assets/images/fire_icon.png',
-                  width: 12,
-                  height: 12,
+  Widget _buildShopItem(String imagePath, int price, int itemIndex) {
+    final isSelected = _selectedItemIndex == itemIndex;
+    final isApplied = _appliedItems[_selectedCategory] == itemIndex;
+    
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedItemIndex = itemIndex;
+          // 한 번 탭으로 아이템 적용/해제
+                  if (_appliedItems[_selectedCategory] == itemIndex) {
+          // 이미 적용된 아이템이면 해제 (적용 안됨 상태로)
+          _appliedItems[_selectedCategory] = -1;
+        } else {
+          // 새로운 아이템 적용
+          _appliedItems[_selectedCategory] = itemIndex;
+        }
+        });
+      },
+      child: Container(
+        width: 80,
+        height: 110,
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFECECEC) : null, // 선택된 아이템: 회색, 그 외 없음
+          borderRadius: BorderRadius.circular(8),
+          border: (isApplied || isSelected)
+              ? Border.all(
+                  color: const Color(0xFFECECEC), // 선택 또는 적용: #ECECEC 테두리
+                  width: 2,
+                )
+              : null,
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(1.0),
+                child: Image.asset(
+                  imagePath,
+                  fit: BoxFit.contain,
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  price.toString(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+              ),
+            ),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              decoration: BoxDecoration(
+                color: isSelected ? const Color(0xFFECECEC) : null,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(12),
+                  bottomRight: Radius.circular(12),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    'assets/icons/fire_icon.png',
+                    width: 20,
+                    height: 20,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 4),
+                  Text(
+                    price.toString(),
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

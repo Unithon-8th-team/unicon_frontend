@@ -50,5 +50,24 @@
         <key>NSAllowsArbitraryLoads</key>
         <true/>
     </dict>
+	
+	<!-- 카카오 로그인 설정 -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>kakaolink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>kakao833e3e7d3339dd6dd65e8f61447d97f2</string>
+			</array>
+		</dict>
+	</array>
+	
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>kakaokompassauth</string>
+		<string>kakaolink</string>
+	</array>
 </dict>
 </plist>

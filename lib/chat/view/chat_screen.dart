@@ -130,7 +130,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     // 중앙 큰 불꽃 - 화면 정 중앙에 배치
                     Center(
                       child: Image.asset(
-                        'assets/images/fire_icon.png',
+                        'assets/images/fire_img.png',
                         width: screenWidth * 0.8,
                         height: screenWidth * 0.8,
                         fit: BoxFit.contain,
@@ -330,7 +330,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       image: DecorationImage(
-                        image: AssetImage('assets/images/propil_bg.png'),
+                        image: AssetImage('assets/images/profile_bg.png'),
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -345,7 +345,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                         decoration: const BoxDecoration(
                           shape: BoxShape.circle,
                           image: DecorationImage(
-                            image: AssetImage('assets/images/propil_1.png'),
+                            image: AssetImage('assets/images/profile_1.png'),
                             fit: BoxFit.cover,
                           ),
                         ),
