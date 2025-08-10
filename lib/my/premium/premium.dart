@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:ui';
 
 // 앱의 메인 진입점
 void main() {
@@ -34,7 +35,8 @@ class PremiumMembershipScreen extends StatefulWidget {
   const PremiumMembershipScreen({super.key});
 
   @override
-  State<PremiumMembershipScreen> createState() => _PremiumMembershipScreenState();
+  State<PremiumMembershipScreen> createState() =>
+      _PremiumMembershipScreenState();
 }
 
 class _PremiumMembershipScreenState extends State<PremiumMembershipScreen> {
@@ -144,9 +146,9 @@ class _PremiumMembershipScreenState extends State<PremiumMembershipScreen> {
             letterSpacing: 0.72,
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8.0),
-          child: const Text(
+        const Padding(
+          padding: EdgeInsets.only(bottom: 8.0),
+          child: Text(
             '멤버십',
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -301,7 +303,8 @@ class _PremiumMembershipScreenState extends State<PremiumMembershipScreen> {
               _BenefitCard(
                 number: '2',
                 title: '프리미엄 데이터',
-                description: '화내줄깨가 당신의 데이터를 학습하여 더욱 개인화된 대화가 가능해져요',
+                description:
+                    '화내줄깨가 당신의 데이터를 학습하여 더욱 개인화된 대화가 가능해져요',
                 content: Image.asset('assets/images/scroll_3.png'),
               ),
               _BenefitCard(
@@ -412,6 +415,7 @@ class _BenefitCard extends StatelessWidget {
   final Widget content;
 
   const _BenefitCard({
+    super.key,
     required this.number,
     required this.title,
     required this.description,
@@ -424,48 +428,68 @@ class _BenefitCard extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: const Color(0x663D3D3D),
+        color: Colors.transparent, // 기존 배경색 제거
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-            decoration: BoxDecoration(
-              color: const Color(0x4C505050),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              number,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w400,
+          // [추가] 블러 효과를 위한 BackdropFilter
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+                child: Container(
+                  color: const Color(0x663D3D3D), // 흐릿한 배경색
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 23),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.w600,
+          Padding(
+            padding: const EdgeInsets.all(0), // 내부 Padding 유지
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0x4C505050),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    number,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 23),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w400,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Center(child: content),
+              ],
             ),
           ),
-          const SizedBox(height: 5),
-          Text(
-            description,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 15,
-              fontWeight: FontWeight.w400,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 32),
-          Center(child: content),
         ],
       ),
     );
