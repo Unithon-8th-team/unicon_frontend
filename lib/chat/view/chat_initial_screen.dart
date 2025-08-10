@@ -43,18 +43,20 @@ class _ChatInitialScreenState extends State<ChatInitialScreen> {
                   margin: const EdgeInsets.symmetric(horizontal: 20),
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.4),
+                    color: const Color(0x66636363), // #636363 with 40% opacity
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         '지금 얼마나 화가나?',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 20,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w600,
                         ),
+                        textAlign: TextAlign.left,
                       ),
                       const SizedBox(height: 30),
                       // 첫 번째 토글 (화나는 정도)
@@ -72,11 +74,11 @@ class _ChatInitialScreenState extends State<ChatInitialScreen> {
                         children: [
                           Text(
                             '매우 조금',
-                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                            style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
                           ),
                           Text(
                             '매우 많이',
-                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                            style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
@@ -91,18 +93,20 @@ class _ChatInitialScreenState extends State<ChatInitialScreen> {
                     margin: const EdgeInsets.symmetric(horizontal: 20),
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.4),
+                      color: const Color(0x66636363), // #636363 with 40% opacity
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
                           '내가 얼만큼 화내줄까?',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        textAlign: TextAlign.left,
                         ),
                         const SizedBox(height: 30),
                         _buildSlider(
@@ -119,11 +123,11 @@ class _ChatInitialScreenState extends State<ChatInitialScreen> {
                           children: [
                             Text(
                               '매우 조금',
-                              style: TextStyle(color: Colors.white70, fontSize: 12),
-                            ),
-                            Text(
-                              '매우 많이',
-                              style: TextStyle(color: Colors.white70, fontSize: 12),
+                            style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            '매우 많이',
+                            style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
@@ -202,7 +206,7 @@ class _ChatInitialScreenState extends State<ChatInitialScreen> {
                               style: TextStyle(
                                 color: Colors.black87,
                                 fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
@@ -223,6 +227,10 @@ class _ChatInitialScreenState extends State<ChatInitialScreen> {
     required int value,
     required Function(int) onChanged,
   }) {
+    const double trackHeight = 34.0;
+    const double dotSize = 8.0; // 흰 점 크기
+    const double hPad = 24.0;   // 좌우 내부 여백(끝 점이 잘리지 않도록)
+
     return Container(
       height: 50,
       margin: const EdgeInsets.symmetric(horizontal: 10),
@@ -231,51 +239,30 @@ class _ChatInitialScreenState extends State<ChatInitialScreen> {
           // 배경 트랙
           Center(
             child: Container(
-              height: 34,
+              height: trackHeight,
               decoration: BoxDecoration(
-                color: const Color(0xB2636363),
-                borderRadius: BorderRadius.circular(17),
+                color: const Color(0x80636363), // #636363 with 50% opacity
+                borderRadius: BorderRadius.circular(trackHeight / 2),
               ),
             ),
           ),
-          // 불 이모티콘 슬라이더
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 34.0,
-              activeTrackColor: Colors.transparent,
-              inactiveTrackColor: Colors.transparent,
-              thumbShape: const _FireThumbShape(touchRadius: 20.0),
-              overlayColor: Colors.transparent,
-              overlayShape: SliderComponentShape.noOverlay,
-            ),
-            child: Slider(
-              value: value.toDouble(),
-              min: 0,
-              max: 4,
-              divisions: 4,
-              onChanged: (sliderValue) {
-                onChanged(sliderValue.round());
-              },
-            ),
-          ),
-          // 5개의 작은 점
-          Positioned(
-            left: 10,
-            right: 10,
-            top: 8,
-            bottom: 8,
+
+          // 5개의 작은 점(끝이 잘리지 않도록 내부 여백을 두고 배치)
+          Positioned.fill(
             child: IgnorePointer(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final stepWidth = constraints.maxWidth / 4;
+                  final totalWidth = constraints.maxWidth;
+                  final usableWidth = totalWidth - (hPad * 2);
                   return Stack(
                     children: List.generate(5, (index) {
+                      final dx = hPad + (usableWidth * (index / 4));
                       return Positioned(
-                        left: index * stepWidth - 4,
-                        top: constraints.maxHeight / 2 - 4,
+                        left: dx - (dotSize / 2),
+                        top: (constraints.maxHeight / 2) - (dotSize / 2),
                         child: Container(
-                          width: 8,
-                          height: 8,
+                          width: dotSize,
+                          height: dotSize,
                           decoration: const BoxDecoration(
                             color: Colors.white,
                             shape: BoxShape.circle,
@@ -286,6 +273,31 @@ class _ChatInitialScreenState extends State<ChatInitialScreen> {
                   );
                 },
               ),
+            ),
+          ),
+
+          // 불 이모티콘 슬라이더(기본 트랙 페인팅 제거해서 잔상/하이라이트가 생기지 않도록 함)
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: trackHeight,
+              // 기본 트랙 렌더링 제거 -> 우리가 그린 배경만 보이게
+              trackShape: const _NoopTrackShape(),
+              activeTrackColor: Colors.transparent,
+              inactiveTrackColor: Colors.transparent,
+              thumbShape: const _FireThumbShape(touchRadius: 25.0),
+              overlayColor: Colors.transparent,
+              overlayShape: SliderComponentShape.noOverlay,
+              // 기본 눈금(회색 동그라미) 제거
+              activeTickMarkColor: Colors.transparent,
+              inactiveTickMarkColor: Colors.transparent,
+              tickMarkShape: const RoundSliderTickMarkShape(tickMarkRadius: 0),
+            ),
+            child: Slider(
+              value: value.toDouble(),
+              min: 0,
+              max: 4,
+              divisions: 4,
+              onChanged: (sliderValue) => onChanged(sliderValue.round()),
             ),
           ),
         ],
@@ -319,25 +331,66 @@ class _FireThumbShape extends SliderComponentShape {
     required double textScaleFactor,
     required Size sizeWithOverflow,
   }) {
-    final textPainter = TextPainter(
-      text: const TextSpan(
-        text: '🔥',
-        style: TextStyle(fontSize: 35),
-      ),
-      textDirection: textDirection,
-    )..layout();
+    // fire_img.png 이미지를 그리기 위한 ImageProvider
+    final imageProvider = AssetImage('assets/images/fire_img.png');
     
-    textPainter.paint(
-      context.canvas,
-      Offset(
-        center.dx - textPainter.width / 2,
-        center.dy - textPainter.height / 2,
-      ),
+    // 이미지 로드 및 그리기
+    imageProvider.resolve(ImageConfiguration()).addListener(
+      ImageStreamListener((ImageInfo info, bool _) {
+        final paint = Paint();
+        final rect = Rect.fromCenter(
+          center: Offset(center.dx, center.dy - 5), // 위쪽으로 5픽셀 이동
+          width: 45, // 너비를 45로 증가
+          height: 45, // 높이를 45로 증가
+        );
+        
+        context.canvas.drawImageRect(
+          info.image,
+          Rect.fromLTWH(0, 0, info.image.width.toDouble(), info.image.height.toDouble()),
+          rect,
+          paint,
+        );
+      }),
     );
   }
   
   @override
   bool hitTest(Offset position, Offset center, {TextDirection? textDirection}) {
     return (position - center).distance <= touchRadius;
+  }
+}
+
+class _NoopTrackShape extends SliderTrackShape {
+  const _NoopTrackShape();
+
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    const double trackHeight = 34.0;
+    final double trackLeft = offset.dx;
+    final double trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final double trackWidth = parentBox.size.width;
+    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
+  }
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset offset, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required Offset thumbCenter,
+    bool isDiscrete = false,
+    bool isEnabled = false,
+    required TextDirection textDirection,
+    Offset? secondaryOffset,
+  }) {
+    // 기본 트랙을 그리지 않음. (배경 트랙은 우리가 별도 컨테이너로 그림)
   }
 }

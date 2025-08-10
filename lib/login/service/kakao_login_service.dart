@@ -1,8 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:kakao_flutter_sdk_user/kakao_flutter_sdk_user.dart' hide User;
-import 'auth_api_service.dart';
-import '../models/auth_response.dart';
+import 'package:provider/provider.dart';
+import 'package:dio/dio.dart';
+import '../controller/login_controller.dart';
+import '../view/oauth_webview_screen.dart';
 
 class KakaoLoginService {
   static const String _accessTokenKey = 'access_token';
@@ -11,120 +13,94 @@ class KakaoLoginService {
   static const String _userEmailKey = 'user_email';
   static const String _userNicknameKey = 'user_nickname';
   static const String _userCoinKey = 'user_coin';
+  static const String _userDailyConversationCountKey = 'user_daily_conversation_count';
+  static const String _tokenExpiryKey = 'token_expiry';
+  
+  final Dio _dio = Dio(BaseOptions(
+    baseUrl: 'http://10.0.2.2:3000',
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 10),
+  ));
 
-  static final AuthApiService _authService = AuthApiService();
-
-  // 카카오 SDK를 사용한 실제 로그인
-  static Future<bool> login(BuildContext context) async {
-    print('=== 카카오 SDK 로그인 시작 ===');
+  // 변경 전: Future<void> login(BuildContext context) async
+  Future<bool> login(BuildContext context, LoginController loginController) async {
     try {
-      // 1. 카카오 SDK로 로그인
-      OAuthToken token;
-      if (await isKakaoTalkInstalled()) {
-        print('📱 카카오톡으로 로그인 시도');
-        token = await UserApi.instance.loginWithKakaoTalk();
-      } else {
-        print('🌐 카카오 계정으로 로그인 시도');
-        token = await UserApi.instance.loginWithKakaoAccount();
+      print('=== 백엔드 API 기반 카카오 OAuth 로그인 시작 ===');
+
+      final result = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OAuthWebViewScreen(
+            initialUrl: 'http://10.0.2.2:3000/auth/kakao',
+            onSuccess: (accessToken, refreshToken) async {
+              print('🎉 OAuth 성공! 토큰: ${accessToken.substring(0, 20)}...');
+              await _saveUserData(accessToken, refreshToken);
+
+              // LoginController를 직접 사용하여 로그인 상태 업데이트
+              await loginController.updateLoginStateWithTokens(accessToken, refreshToken);
+              
+              print('✅ 로그인 상태 업데이트 완료');
+              
+              // 단, pop은 여기서 수행
+              Navigator.pop(context, true);
+            },
+            onFailure: (String errorMessage) {
+              print('❌ OAuth 실패: $errorMessage');
+              Navigator.pop(context, false);
+            },
+          ),
+        ),
+      );
+
+      if (result == true) {
+        print('✅ 웹뷰 OAuth 로그인 완료!');
+        return true;
       }
-
-      print('✅ 카카오 로그인 성공! 액세스 토큰: ${token.accessToken.substring(0, 20)}...');
-
-      // 2. 카카오 사용자 정보 가져오기
-      final kakaoUser = await UserApi.instance.me();
-      print('👤 카카오 사용자 정보: ${kakaoUser.kakaoAccount?.profile?.nickname}');
-
-      // 3. 백엔드에 카카오 토큰 전송하여 JWT 받기
-      print('🔄 백엔드에 카카오 토큰 전송 중...');
-      final authResponse = await _authService.verifyKakaoToken(token.accessToken);
+      return false;
+    } catch (e) {
+      print('❌ 카카오 로그인 실패: $e');
+      return false;
+    }
+  }
+  // 백엔드에서 받은 토큰으로 사용자 데이터 저장
+  Future<void> _saveUserData(String accessToken, String refreshToken) async {
+    try {
+      print('🔄 백엔드 토큰으로 사용자 데이터 저장 시작');
       
-      // 4. 받은 JWT와 사용자 정보 저장
-      await _saveUserData(authResponse);
-      print('✅ 실제 로그인 완료! 사용자: ${authResponse.user.nickname}');
-      return true;
-
-    } catch (error) {
-      print('❌ 카카오 SDK 로그인 실패: $error');
-      print('🔄 임시 로그인으로 폴백');
-      final tempResult = await loginTemp();
-      print('📱 임시 로그인 결과: $tempResult');
-      return tempResult;
+      // 백엔드에서 이미 토큰을 반환했으므로, 그대로 저장
+      final prefs = await SharedPreferences.getInstance();
+      
+      // 백엔드 토큰 저장
+      await prefs.setString(_accessTokenKey, accessToken);
+      await prefs.setString(_refreshTokenKey, refreshToken);
+      
+      // 기본 사용자 정보 설정 (백엔드에서 사용자 정보를 별도로 제공하지 않음)
+      await prefs.setString(_userIdKey, 'kakao_user');
+      await prefs.setString(_userEmailKey, 'kakao@email.com');
+      await prefs.setString(_userNicknameKey, '카카오 사용자');
+      await prefs.setInt(_userCoinKey, 0);
+      await prefs.setInt(_userDailyConversationCountKey, 0);
+      
+      // 토큰 만료 시간 설정 (기본 24시간)
+      final expiryTime = DateTime.now().add(const Duration(hours: 24));
+      await prefs.setString(_tokenExpiryKey, expiryTime.toIso8601String());
+      
+      print('💾 백엔드 토큰으로 사용자 데이터 저장 완료');
+    } catch (e) {
+      print('❌ 사용자 데이터 저장 실패: $e');
     }
   }
 
-  // 사용자 데이터 저장
-  static Future<void> _saveUserData(AuthResponse authResponse) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_accessTokenKey, authResponse.accessToken);
-    await prefs.setString(_refreshTokenKey, authResponse.refreshToken);
-    await prefs.setString(_userIdKey, authResponse.user.id);
-    await prefs.setString(_userEmailKey, authResponse.user.email);
-    await prefs.setString(_userNicknameKey, authResponse.user.nickname);
-    await prefs.setInt(_userCoinKey, authResponse.user.coin);
-  }
-
-  // 저장된 액세스 토큰 가져오기
-  static Future<String?> getAccessToken() async {
+  // 저장된 토큰 가져오기
+  Future<String?> getAccessToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_accessTokenKey);
   }
 
-  // 저장된 사용자 정보 가져오기
-  static Future<User?> getUserInfo() async {
-    final prefs = await SharedPreferences.getInstance();
-    final id = prefs.getString(_userIdKey);
-    final email = prefs.getString(_userEmailKey);
-    final nickname = prefs.getString(_userNicknameKey);
-    final coin = prefs.getInt(_userCoinKey);
-
-    if (id != null && email != null && nickname != null && coin != null) {
-      return User(
-        id: id,
-        email: email,
-        nickname: nickname,
-        coin: coin,
-        dailyConversationCount: 0, // 기본값
-      );
-    }
-    return null;
-  }
-
-  // 로그인 상태 확인
-  static Future<bool> isLoggedIn() async {
-    final token = await getAccessToken();
-    return token != null;
-  }
-
   // 로그아웃
-  static Future<void> logout() async {
+  Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
-    print('로그아웃 성공');
-  }
-
-  // 임시 개발용 로그인 (실제 API 연결 전 테스트용)
-  static Future<bool> loginTemp() async {
-    try {
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      // 임시 사용자 데이터 생성
-      final tempAuthResponse = AuthResponse(
-        accessToken: 'temp_access_token_12345',
-        refreshToken: 'temp_refresh_token_67890',
-        user: User(
-          id: 'temp_user_123',
-          email: 'test@example.com',
-          nickname: '테스트유저',
-          coin: 30,
-          dailyConversationCount: 0,
-        ),
-      );
-      
-      await _saveUserData(tempAuthResponse);
-      return true;
-    } catch (e) {
-      print('임시 로그인 실패: $e');
-      return false;
-    }
+    print('✅ 로그아웃 완료');
   }
 }

@@ -98,9 +98,8 @@ class _RefactoredScreenState extends State<RefactoredScreen> {
                     userCoins.toString(),
                     style: const TextStyle(
                       color: Colors.white,
+                      fontWeight: FontWeight.w600,
                       fontSize: 20,
-                      fontFamily: 'Pretendard',
-                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),

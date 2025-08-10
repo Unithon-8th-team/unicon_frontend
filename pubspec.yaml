@@ -15,7 +15,7 @@ dependencies:
     sdk: flutter
 
   kakao_flutter_sdk_user: ^1.4.3
-
+  webview_flutter: ^4.7.0  # 웹뷰 기반 OAuth 플로우용 (모바일)
 
   cupertino_icons: ^1.0.8
 
@@ -38,6 +38,12 @@ dev_dependencies:
 flutter:
 
   uses-material-design: true
+
+  fonts:
+    - family: Pretendard
+      fonts:
+        - asset: assets/fonts/Pretendard-SemiBold.otf
+          weight: 600
 
   assets:
     - assets/images/ # 이미지 에셋 경로
