@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../service/kakao_login_service.dart';
 import '../service/auth_api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginController extends ChangeNotifier {
   bool _isLoading = false;
-  bool _isInitialized = true; // 자동 로그인 방지를 위해 true로 설정
+  bool _isInitialized = false; // 초기화되지 않은 상태로 시작
   String? _accessToken;
   String? _errorMessage;
 
@@ -18,28 +19,33 @@ class LoginController extends ChangeNotifier {
   final AuthApiService _authService = AuthApiService();
 
   // 초기화 및 로그인 상태 확인
-Future<void> checkLoginStatus() async {
-  if (_isInitialized) return;
-  try {
-    print('🔄 로그인 상태 확인 시작');
+  Future<void> checkLoginStatus() async {
+    if (_isInitialized) return;
+    try {
+      print('🔄 로그인 상태 확인 시작');
 
-    // 저장된 토큰 읽기 (하지만 자동 로그인은 하지 않음)
-    _accessToken = await _kakaoService.getAccessToken();
-    if (_accessToken != null) {
-      print('✅ 저장된 토큰 발견 (자동 로그인은 하지 않음)');
-    } else {
-      print('ℹ️ 저장된 토큰 없음');
+      // 🚨 개발 모드: 토큰 무시하고 항상 로그인되지 않은 상태로 시작
+      // TODO: 프로덕션 배포 시 아래 주석을 해제하고 실제 토큰 확인 로직 사용
+      // _accessToken = await _kakaoService.getAccessToken();
+      // if (_accessToken != null) {
+      //   print('✅ 저장된 토큰 발견');
+      // } else {
+      //   print('ℹ️ 저장된 토큰 없음');
+      // }
+      
+      // 개발 중에는 항상 토큰이 없는 상태로 시작
+      _accessToken = null;
+      print('🔧 개발 모드: 토큰 무시하고 로그인 화면부터 시작');
+
+      _isInitialized = true;
+      notifyListeners();
+    } catch (e) {
+      print('❌ 로그인 상태 확인 실패: $e');
+      _errorMessage = '로그인 상태 확인에 실패했습니다: $e';
+      _isInitialized = true;
+      notifyListeners();
     }
-
-    _isInitialized = true;
-    notifyListeners();
-  } catch (e) {
-    print('❌ 로그인 상태 확인 실패: $e');
-    _errorMessage = '로그인 상태 확인에 실패했습니다: $e';
-    _isInitialized = true;
-    notifyListeners();
   }
-}
 
   // 카카오 로그인
   Future<bool> kakaoLogin(BuildContext context) async {
@@ -185,5 +191,22 @@ Future<void> checkLoginStatus() async {
     print('  - 초기화됨: $_isInitialized');
     print('  - 로그인됨: $isLoggedIn');
     print('  - 토큰: ${_accessToken?.substring(0, 20) ?? '없음'}...');
+  }
+
+  // 초기 설정 완료 여부 확인
+  Future<bool> isFirstSetupCompleted() async {
+    try {
+      // 🚨 개발 모드: 초기 설정 완료 여부 무시하고 항상 false 반환
+      // TODO: 프로덕션 배포 시 아래 주석을 해제하고 실제 설정 확인 로직 사용
+      // final prefs = await SharedPreferences.getInstance();
+      // return prefs.getBool('first_setup_completed') ?? false;
+      
+      // 개발 중에는 항상 초기 설정이 완료되지 않은 상태로 시작
+      print('🔧 개발 모드: 초기 설정 완료 여부 무시하고 FirstSettingScreen 표시');
+      return false;
+    } catch (e) {
+      print('❌ 초기 설정 완료 여부 확인 실패: $e');
+      return false;
+    }
   }
 }

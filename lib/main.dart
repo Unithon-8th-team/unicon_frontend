@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'login/controller/login_controller.dart';
 import 'login/view/login_screen.dart';
 import 'home/view/home_screen.dart';
+import 'login/view/first_setting_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,7 +27,6 @@ class MyApp extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (context) {
         final controller = LoginController();
-        // checkLoginStatus() 호출하지 않음 - 자동 로그인 방지
         return controller;
       },
       child: MaterialApp(
@@ -40,10 +40,38 @@ class MyApp extends StatelessWidget {
           builder: (context, controller, child) {
             print('🔄 Consumer: isLoggedIn=${controller.isLoggedIn}, isInitialized=${controller.isInitialized}');
             if (!controller.isInitialized) {
+              // 초기화되지 않았을 때 checkLoginStatus 호출
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                controller.checkLoginStatus();
+              });
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
-            // 무조건 로그인 화면부터 시작 (자동 로그인 방지)
-            return const LoginScreen();
+            
+            // 로그인 상태에 따른 화면 분기
+            if (controller.isLoggedIn) {
+              // 로그인된 경우 초기 설정 완료 여부 확인
+              return FutureBuilder<bool>(
+                future: controller.isFirstSetupCompleted(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+                  }
+                  
+                  final isFirstSetupCompleted = snapshot.data ?? false;
+                  
+                  if (isFirstSetupCompleted) {
+                    // 초기 설정이 완료된 경우 홈 화면으로
+                    return const HomeScreen();
+                  } else {
+                    // 초기 설정이 완료되지 않은 경우 초기 설정 화면으로
+                    return const FirstSettingScreen();
+                  }
+                },
+              );
+            } else {
+              // 로그인되지 않은 경우 로그인 화면
+              return const LoginScreen();
+            }
           },
         ),
       ),
