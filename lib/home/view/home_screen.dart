@@ -18,7 +18,7 @@ class RefactoredScreen extends StatefulWidget {
 
 class _RefactoredScreenState extends State<RefactoredScreen> {
   int userCoins = 200;
-  String backgroundImagePath = 'assets/images/day.png';
+  String backgroundImagePath = 'assets/images/day_background.png';
   Timer? _timer;
 
   @override
@@ -42,9 +42,9 @@ class _RefactoredScreenState extends State<RefactoredScreen> {
     String newImagePath;
 
     if (currentHour >= 6 && currentHour < 18) {
-      newImagePath = 'assets/images/day.png';
+      newImagePath = 'assets/images/day_background.png';
     } else {
-      newImagePath = 'assets/images/night.png';
+      newImagePath = 'assets/images/night_background.png';
     }
 
     if (backgroundImagePath != newImagePath) {
@@ -153,7 +153,7 @@ class _RefactoredScreenState extends State<RefactoredScreen> {
                 child: Align(
                   alignment: Alignment.center,
                   child: Image.asset(
-                    'assets/images/character.png',
+                    'assets/images/character_1.png',
                     width: 172,
                     height: 239,
                     fit: BoxFit.contain,
