@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'chat_screen.dart';
+import '../../home/view/home_screen.dart';
 
 class ChatInitialScreen extends StatefulWidget {
   const ChatInitialScreen({super.key});
@@ -141,7 +142,16 @@ class _ChatInitialScreenState extends State<ChatInitialScreen> {
                       // X 버튼
                       GestureDetector(
                         onTap: () {
-                          Navigator.pushReplacementNamed(context, '/home');
+                          // HomeScreen으로 이동
+                          Navigator.pushReplacement(
+                            context,
+                            PageRouteBuilder(
+                              pageBuilder: (context, animation, secondaryAnimation) => const HomeScreen(),
+                              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                return child; // 애니메이션 없음
+                              },
+                            ),
+                          );
                         },
                         child: Container(
                           width: 50,
@@ -169,7 +179,16 @@ class _ChatInitialScreenState extends State<ChatInitialScreen> {
                                   _showSecondSlider = true;
                                 });
                               } else {
-                                Navigator.pushReplacementNamed(context, '/chat/room');
+                                // ChatScreen으로 직접 이동
+                                Navigator.pushReplacement(
+                                  context,
+                                  PageRouteBuilder(
+                                    pageBuilder: (context, animation, secondaryAnimation) => const ChatScreen(),
+                                    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                      return child; // 애니메이션 없음
+                                    },
+                                  ),
+                                );
                               }
                             },
                             style: ElevatedButton.styleFrom(

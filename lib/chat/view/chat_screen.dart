@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../service/chat_service.dart';
+import 'chat_initial_screen.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -153,7 +154,16 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     // 뒤로가기 버튼
                     GestureDetector(
                       onTap: () {
-                        Navigator.pushReplacementNamed(context, '/chat');
+                        // ChatInitialScreen으로 이동
+                        Navigator.pushReplacement(
+                          context,
+                          PageRouteBuilder(
+                            pageBuilder: (context, animation, secondaryAnimation) => const ChatInitialScreen(),
+                            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                              return child; // 애니메이션 없음
+                            },
+                          ),
+                        );
                       },
                       child: Container(
                         width: 40,

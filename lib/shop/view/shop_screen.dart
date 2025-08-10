@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 class ShopScreen extends StatefulWidget {
-  const ShopScreen({super.key});
+  final VoidCallback? onBackToHome; // 홈으로 돌아가는 콜백 추가
+  
+  const ShopScreen({super.key, this.onBackToHome});
 
   @override
   State<ShopScreen> createState() => _ShopScreenState();
@@ -251,7 +253,12 @@ class _ShopScreenState extends State<ShopScreen> {
                 Row(
                   children: [
                     IconButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        // X 버튼 클릭 시 홈 화면으로 이동
+                        if (widget.onBackToHome != null) {
+                          widget.onBackToHome!();
+                        }
+                      },
                       icon: const Icon(Icons.close, size: 30),
                     ),
                     Expanded(
