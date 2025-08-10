@@ -206,8 +206,8 @@ class _HomeScreenState extends State<HomeScreen> {
       extendBody: true,
       // SafeArea를 제거하여 하단 앱 바까지 화면이 채워지도록 함
       body: _pages[_selectedIndex],
-      // 홈 화면(인덱스 2)에서만 앱 바 표시
-      bottomNavigationBar: _selectedIndex == 2 
+      // 홈 화면(인덱스 2), Hit 화면(인덱스 1), My 화면(인덱스 4)에서 앱 바 표시
+      bottomNavigationBar: (_selectedIndex == 2 || _selectedIndex == 1 || _selectedIndex == 4)
           ? CustomBottomAppBar(
               currentIndex: _selectedIndex,
               onTap: _onItemTapped,
