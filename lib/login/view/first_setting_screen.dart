@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../home/view/home_screen.dart';
+import '../service/auth_api_service.dart';
 
 class FirstSettingScreen extends StatefulWidget {
   const FirstSettingScreen({super.key});
@@ -148,6 +149,80 @@ class _FirstSettingScreenState extends State<FirstSettingScreen>
   Future<void> _completeSetup() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      
+      // 디버그: SharedPreferences에 저장된 모든 키 확인
+      final allKeys = prefs.getKeys();
+      print('🔍 SharedPreferences에 저장된 모든 키: $allKeys');
+      
+      // JWT 토큰과 사용자 ID 가져오기
+      final accessToken = prefs.getString('access_token');
+      final userId = prefs.getString('user_id');
+      
+      print('🔍 JWT 토큰: ${accessToken?.substring(0, 20) ?? '없음'}...');
+      print('🔍 사용자 ID: $userId');
+      
+      if (accessToken == null || userId == null) {
+        throw Exception('토큰 또는 사용자 ID가 없습니다.');
+      }
+
+      // 성별을 API 스펙에 맞게 변환
+      String sex;
+      switch (_selectedGender) {
+        case '남자':
+          sex = 'M';
+          break;
+        case '여자':
+          sex = 'F';
+          break;
+        case '기타':
+        default:
+          sex = 'N';
+          break;
+      }
+
+      // API 호출
+      final authService = AuthApiService();
+      try {
+        await authService.setUserProfile(
+          accessToken: accessToken,
+          userId: userId,
+          nickname: _userName,
+          birthDate: _selectedDate.toIso8601String().split('T')[0], // YYYY-MM-DD 형식
+          sex: sex,
+        );
+        print('✅ 백엔드 API 호출 성공');
+      } catch (e) {
+        print('⚠️ 백엔드 API 호출 실패: $e');
+        
+        // 사용자에게 에러 메시지 표시
+        String errorMessage = '설정 저장에 실패했습니다.';
+        
+        if (e.toString().contains('사용자 ID') && e.toString().contains('존재하지 않습니다')) {
+          errorMessage = '사용자 계정이 백엔드에 생성되지 않았습니다.\n카카오 로그인을 다시 시도해주세요.';
+        } else if (e.toString().contains('네트워크') || e.toString().contains('timeout')) {
+          errorMessage = '네트워크 연결을 확인해주세요.';
+        } else if (e.toString().contains('401') || e.toString().contains('unauthorized')) {
+          errorMessage = '로그인이 만료되었습니다.\n다시 로그인해주세요.';
+        }
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 5),
+              action: SnackBarAction(
+                label: '확인',
+                textColor: Colors.white,
+                onPressed: () {},
+              ),
+            ),
+          );
+        }
+        
+        // API 호출 실패 시에도 로컬 설정은 저장
+        print('💾 로컬 설정만 저장합니다.');
+      }
       
       // 사용자 설정 데이터 저장
       await prefs.setString('user_birth_date', _selectedDate.toIso8601String());

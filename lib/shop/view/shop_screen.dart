@@ -58,6 +58,13 @@ class _ShopScreenState extends State<ShopScreen> {
     'assets/icons/clothes.png',
     'assets/icons/wepon.png',
   ];
+  
+  // 활성화된 카테고리 아이콘들
+  final List<String> _categoryIconsActive = [
+    'assets/icons/hair_on.png',
+    'assets/icons/clothes_on.png',
+    'assets/icons/wepon_on.png',
+  ];
 
   // 현재 적용된 아이템들로 캐릭터 이미지 생성
   Widget _buildCharacterWithItems() {
@@ -416,7 +423,7 @@ class _ShopScreenState extends State<ShopScreen> {
         child: Padding(
           padding: const EdgeInsets.all(6.0),
           child: Image.asset(
-            _categoryIcons[categoryIndex],
+            isSelected ? _categoryIconsActive[categoryIndex] : _categoryIcons[categoryIndex],
             fit: BoxFit.contain,
           ),
         ),

@@ -5,7 +5,8 @@ import 'package:flutter_svg/flutter_svg.dart'; // RefactoredScreen의 SvgPicture
 // 공동 작업자의 다른 화면들 (경로는 실제 프로젝트 구조에 맞게 확인해주세요)
 import '../../chat/view/chat_initial_screen.dart'; // ChatInitialScreen으로 변경
 import '../../my/view/my_screen.dart';
-import '../../hit/view/hit_screen.dart';
+import '../../hit/service/hit_navigation_service.dart';
+import '../../hit/view/hit_loading_screen.dart';
 import '../../shop/view/shop_screen.dart';
 import '../../common/custom_app_bar.dart'; // CustomBottomAppBar import 추가
 
@@ -192,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // CustomBottomAppBar의 순서에 맞춰서 수정: 채팅, 때려줄게, 홈, 상점, 마이
     final List<Widget> _pages = <Widget>[
       const ChatInitialScreen(), // 0: 채팅 (ChatScreen에서 ChatInitialScreen으로 변경)
-      const HitScreen(),  // 1: 때려줄게
+      const HitLoadingScreen(),  // 1: 때려줄게 (로딩 화면으로 시작)
       const RefactoredScreen(), // 2: 홈 (사용자가 만든 화면)
       ShopScreen(onBackToHome: _onBackToHome), // 3: 상점 (콜백 전달)
       const MyScreen(),   // 4: 마이
