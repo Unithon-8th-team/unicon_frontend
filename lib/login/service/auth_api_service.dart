@@ -2,29 +2,91 @@ import 'package:dio/dio.dart';
 import '../models/auth_response.dart';
 
 class AuthApiService {
-  static const String _baseUrl = 'http://10.0.2.2:3000';
-  late final Dio _dio;
-
-  AuthApiService() {
-    _dio = Dio(BaseOptions(
-      baseUrl: _baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
-    ));
-  }
+  final Dio _dio = Dio(BaseOptions(
+    baseUrl: 'http://10.0.2.2:3000',
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 10),
+  ));
 
   // 로그아웃
-  Future<void> logout(String token) async {
+  Future<void> logout(String accessToken) async {
     try {
-      await _dio.post(
-        '/auth/logout',
+      await _dio.post('/auth/logout', 
         options: Options(
-          headers: {'Authorization': 'Bearer $token'},
+          headers: {'Authorization': 'Bearer $accessToken'},
         ),
       );
-      print('✅ 로그아웃 성공');
     } catch (e) {
-      print('❌ 로그아웃 실패: $e');
+      print('❌ 로그아웃 API 호출 실패: $e');
+      rethrow;
+    }
+  }
+
+  // 유저 프로필 초기 셋팅
+  Future<Map<String, dynamic>> setUserProfile({
+    required String accessToken,
+    required String userId,
+    required String nickname,
+    required String birthDate,
+    required String sex,
+  }) async {
+    try {
+      print('🔍 API 요청 정보:');
+      print('  - URL: /users/$userId/settings');
+      print('  - Access Token: $accessToken'); // 전체 토큰 값 표시
+      print('  - User ID: $userId');
+      print('  - Nickname: $nickname');
+      print('  - Birth Date: $birthDate');
+      print('  - Sex: $sex');
+
+      // FormData 생성
+      final formData = FormData.fromMap({
+        'nickname': nickname,
+        'birthDate': birthDate,
+        'sex': sex,
+      });
+
+      print('🔍 FormData 생성 완료');
+
+      final response = await _dio.post(
+        '/users/$userId/settings',
+        data: formData,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $accessToken', // Authorization 헤더 추가
+            'Content-Type': 'application/json',
+          },
+          validateStatus: (status) {
+            print('🔍 응답 상태 코드: $status');
+            return status! < 500; // 500 이상만 에러로 처리
+          },
+        ),
+      );
+
+      print('✅ 유저 프로필 초기 셋팅 성공: ${response.data}');
+      return response.data;
+    } catch (e) {
+      print('❌ 유저 프로필 초기 셋팅 API 호출 실패: $e');
+      
+      // DioException인 경우 더 자세한 정보 출력
+      if (e is DioException) {
+        print('🔍 DioException 상세 정보:');
+        print('  - Type: ${e.type}');
+        print('  - Message: ${e.message}');
+        print('  - Response: ${e.response?.data}');
+        print('  - Status Code: ${e.response?.statusCode}');
+        print('  - Headers: ${e.response?.headers}');
+        
+        // HTTP 상태 코드별 에러 메시지 개선
+        if (e.response?.statusCode == 404) {
+          throw Exception('사용자 ID $userId가 백엔드에 존재하지 않습니다. 카카오 로그인을 다시 시도해주세요.');
+        } else if (e.response?.statusCode == 401) {
+          throw Exception('인증이 만료되었습니다. 다시 로그인해주세요.');
+        } else if (e.response?.statusCode == 403) {
+          throw Exception('권한이 없습니다. 관리자에게 문의해주세요.');
+        }
+      }
+      
       rethrow;
     }
   }

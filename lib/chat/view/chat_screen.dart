@@ -14,6 +14,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   List<Map<String, dynamic>> _messages = [];
   bool _isAiTyping = false; // AI가 답장하고 있는지 여부
   late AnimationController _typingAnimationController;
+  final ChatService _chatService = ChatService();
   
   // 오늘 날짜를 한국어 형식으로 가져오기
   String get todayDate {
@@ -53,14 +54,27 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
     _messageController.clear();
 
-    // 자동 답장 가져오기
+    // AI 채팅 서비스로 메시지 전송
     try {
-      String autoReply = await ChatService.getAutoReply(userMessage, _messages.length);
+      final response = await _chatService.sendMessage(
+        message: userMessage,
+        userAnger: 3, // 기본값, 나중에 사용자 설정에서 가져올 수 있음
+        aiAnger: 3,  // 기본값, 나중에 AI 설정에서 가져올 수 있음
+      );
       
       if (mounted) {
         setState(() {
+          String aiReply;
+          
+          // 에러 응답인지 확인
+          if (_chatService.isErrorResponse(response)) {
+            aiReply = response['fallbackReply'] ?? '죄송합니다. 응답을 생성할 수 없습니다.';
+          } else {
+            aiReply = response['reply'] ?? '죄송합니다. 응답을 생성할 수 없습니다.';
+          }
+          
           _messages.add({
-            'message': autoReply,
+            'message': aiReply,
             'isUser': false,
             'hasProfileImage': true,
             'timestamp': DateTime.now(),
@@ -70,7 +84,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         });
       }
     } catch (e) {
-      print('Error getting auto reply: $e');
+      print('Error getting AI reply: $e');
       if (mounted) {
         setState(() {
           _isAiTyping = false;

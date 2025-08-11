@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../hit/service/hit_navigation_service.dart';
 
 class CustomBottomAppBar extends StatelessWidget {
   final int currentIndex;
@@ -13,7 +14,7 @@ class CustomBottomAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Transform.translate(
-      offset: const Offset(0, 20), // Y축으로 20픽셀 아래로 이동
+      offset: const Offset(0, 20),
       child: Container(
         decoration: const BoxDecoration(
           color: Colors.transparent,
@@ -69,7 +70,14 @@ class CustomBottomAppBar extends StatelessWidget {
           currentIndex: currentIndex,
           selectedItemColor: Colors.black,
           unselectedItemColor: Colors.grey,
-          onTap: onTap,
+          onTap: (index) {
+            // hit 버튼(인덱스 1)을 탭했을 때 로딩 화면을 거쳐 hit screen으로 이동
+            if (index == 1) {
+              HitNavigationService.navigateToHitScreen(context);
+            } else {
+              onTap(index);
+            }
+          },
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.transparent,
           elevation: 0,

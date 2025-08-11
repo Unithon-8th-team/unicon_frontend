@@ -97,7 +97,7 @@ class _OAuthWebViewScreenState extends State<OAuthWebViewScreen> {
       final refreshToken = jsonData['refreshToken'];
 
       if (accessToken is String && refreshToken is String) {
-        _handled = true;                  // ✅ 중복 방지
+        _handled = true; // ✅ 중복 방지
         print('✅ 토큰 추출 성공: ${accessToken.substring(0, 20)}...');
         widget.onSuccess(accessToken, refreshToken);
         return;
@@ -105,7 +105,7 @@ class _OAuthWebViewScreenState extends State<OAuthWebViewScreen> {
       throw Exception('토큰 필드 누락');
     } catch (e) {
       if (!_handled) {
-        _handled = true;                  // 실패도 한 번만
+        _handled = true;  // 실패도 한 번만
         print('❌ 토큰 추출 실패: $e');
         widget.onFailure('콜백 파싱 실패: $e');
       }
