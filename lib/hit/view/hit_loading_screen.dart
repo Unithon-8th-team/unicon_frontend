@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:ui';
@@ -38,6 +39,8 @@ class _CustomLoadingWidgetState extends State<CustomLoadingWidget> with TickerPr
   late AnimationController _characterController;
   late Animation<double> _progressAnimation;
   late Animation<double> _characterAnimation;
+
+
 
   @override
   void initState() {
@@ -674,7 +677,28 @@ class _HitLoadingScreenState extends State<HitLoadingScreen>
             ),
           ],
         ),
-      ),
+      ],
+    );
+  }
+  
+  Widget _buildPromptPage() {
+    return PromptPage(
+      onExit: () => _goToPage(0),
+      onComplete: (Map<String, String?> generatedParts) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => FinalConfirmationPage(
+              selectedParts: generatedParts,
+              onRedo: () => Navigator.of(context).pop(),
+              onConfirm: () {
+                 Navigator.of(context).pushReplacement(
+                   MaterialPageRoute(builder: (_) => SuccessPage(selectedParts: generatedParts))
+                 );
+              },
+            ),
+          ),
+        );
+      },
     );
   }
   
@@ -718,4 +742,671 @@ class _HitLoadingScreenState extends State<HitLoadingScreen>
       ],
     );
   }
+      
+  Widget _buildOptionButton({required String title, required String subtitle, required Color color, required VoidCallback onTap}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: color)),
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: onTap,
+          child: GestureDetector(
+            onVerticalDragStart: (_) {},
+            child: Container(
+              width: double.infinity,
+              height: 50,
+              decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(8)),
+              child: Center(child: Text(subtitle, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500))),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+  
+  Widget _buildPremiumOptionButton({required String text, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: GestureDetector(
+        onVerticalDragStart: (_) {},
+        child: Container(
+          height: 50,
+          decoration: BoxDecoration(color: const Color(0xFF2A2A2A), borderRadius: BorderRadius.circular(8)),
+          child: Center(child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500), textAlign: TextAlign.center)),
+        ),
+      ),
+    );
+  }
 }
+
+// --- ✨ 새로운 프롬프트 페이지 위젯 ---
+class PromptPage extends StatefulWidget {
+  final VoidCallback onExit;
+  final Function(Map<String, String?> generatedParts) onComplete;
+  const PromptPage({super.key, required this.onExit, required this.onComplete});
+
+  @override
+  State<PromptPage> createState() => _PromptPageState();
+}
+
+class _PromptPageState extends State<PromptPage> {
+  final TextEditingController _textController = TextEditingController();
+
+
+  bool _isProcessing = false;
+  final Dio _dio = Dio(BaseOptions(
+    baseUrl: 'http://10.0.2.2:3000',
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 10),
+  ));
+
+  Future<void> _startProcessing() async {
+    final message = _textController.text.trim();
+    print('🔍message: $message');
+
+    if (message.isEmpty) {
+      // 메시지가 비어있으면 경고 등 처리
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('캐릭터 모습을 입력해주세요')),
+      );
+      return;
+    }
+    setState(() {
+      _isProcessing = true;
+    });
+    try {
+      final data = {
+        'message': message,
+      };
+
+      final response = await _dio.post(
+        '/ai/1234/generate-image-code',
+        data: data,
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          receiveTimeout: const Duration(seconds: 30),
+          validateStatus: (status) {
+            print('🔍 응답 상태 코드: $status');
+            return status! < 500;
+          },
+        ),
+      );
+      print('✅ 응답값: ${response.data}');
+
+      final dataMap = response.data as Map<String, dynamic>;
+
+      final Map<String, String?> convertedData = dataMap.map<String, String?>(
+            (String key, dynamic value) => MapEntry(key, value?.toString()),
+      );
+      setState(() => _isProcessing = false);
+
+
+      widget.onComplete(convertedData);
+    } catch (e) {
+      // 에러 처리
+      debugPrint('API 호출 실패: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
+  void _onProcessingComplete() {
+    final Map<String, String?> dummyParts = {
+      'clothes': 'clothes_01.png', 'hair': 'hair_15.png', 'eyes': 'eyes_03.png',
+      'nose': 'nose_01.png', 'mouth': 'mouse_02.png', 'eyebrow': 'eyebrow_01.png',
+    };
+    widget.onComplete(dummyParts);
+    if (mounted) {
+      setState(() {
+        _isProcessing = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isProcessing) {
+      if (_isProcessing) {
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      }
+      // return CustomLoadingWidget(
+      //   duration: const Duration(seconds: 3),
+      //   onLoadingComplete: _onProcessingComplete,
+      // );
+    }
+
+    const pretendardFont = 'Pretendard';
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20), onPressed: widget.onExit),
+                SizedBox(
+                  width: 90, height: 6,
+                  child: Stack(
+                    children: [
+                      Container(decoration: ShapeDecoration(color: const Color(0x7F858585), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)))),
+                      Container(width: 45, decoration: ShapeDecoration(color: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(99)))),
+                    ],
+                  ),
+                ),
+                IconButton(icon: const Icon(Icons.close, color: Colors.white, size: 24), onPressed: widget.onExit),
+              ],
+            ),
+            const Spacer(flex: 2),
+            const Text('원하는 캐릭터의 모습을\n자유롭게 말씀해 주세요!', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontSize: 24, fontFamily: pretendardFont, fontWeight: FontWeight.w600, height: 1.25)),
+            const SizedBox(height: 40),
+            Text('# 눈썹을 찡그린 남자 직장상사의 모습을 그려줘', style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 16, fontFamily: pretendardFont, fontWeight: FontWeight.w400)),
+            const SizedBox(height: 16),
+             GestureDetector(
+              onVerticalDragStart: (_) {},
+              child: TextField(
+                controller: _textController,
+                style: const TextStyle(color: Colors.black, fontFamily: pretendardFont),
+                decoration: InputDecoration(
+                  hintText: '캐릭터 모습',
+                  hintStyle: const TextStyle(color: Color(0xFF595959), fontFamily: pretendardFont),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 25, vertical: 15),
+                  suffixIcon: Padding(padding: const EdgeInsets.only(right: 8.0), child: IconButton(icon: const Icon(Icons.send, color: Colors.black54), onPressed: () {})),
+                ),
+              ),
+            ),
+            const Spacer(flex: 3),
+            ElevatedButton(
+              onPressed: _startProcessing,
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, minimumSize: const Size(double.infinity, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              child: const Text('다음', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+// --- ✨ 새로운 커스터마이징 플로우 위젯 ---
+class CharacterCustomizationFlow extends StatefulWidget {
+  final VoidCallback onExit;
+  const CharacterCustomizationFlow({super.key, required this.onExit});
+
+  @override
+  State<CharacterCustomizationFlow> createState() => _CharacterCustomizationFlowState();
+}
+
+class _CharacterCustomizationFlowState extends State<CharacterCustomizationFlow> {
+  int _currentStep = 0;
+  bool _isCompleting = false;
+  final Map<String, String?> _selectedParts = {
+    'clothes': null, 'eyes': null, 'nose': null, 'mouth': null,
+    'eyebrow': null, 'hair': null, 'beard': null, 'accessories': null,
+  };
+
+  bool get isNextButtonEnabled {
+    final currentStepData = customizationStepsData[_currentStep];
+    if (currentStepData['isOptional'] as bool) return true;
+    return _selectedParts[currentStepData['key']] != null;
+  }
+
+  void _onNextStep() {
+    if (_currentStep < customizationStepsData.length - 1) {
+      setState(() => _currentStep++);
+    } else {
+      setState(() => _isCompleting = true);
+    }
+  }
+
+  void _onCompletionLoadingEnd() {
+    if (mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => FinalConfirmationPage(
+            selectedParts: _selectedParts,
+            onRedo: () {
+              Navigator.of(context).pop();
+              setState(() {
+                _currentStep = 0;
+                _isCompleting = false;
+                _selectedParts.updateAll((key, value) => null);
+              });
+            },
+            onConfirm: () {
+               Navigator.of(context).pushReplacement(
+                 MaterialPageRoute(builder: (_) => SuccessPage(selectedParts: _selectedParts))
+               );
+            },
+          ),
+        ),
+      ).then((_) {
+        if (mounted) {
+          setState(() {
+            _isCompleting = false;
+          });
+        }
+      });
+    }
+  }
+
+  void _onPreviousStep() {
+    if (_currentStep > 0) {
+      setState(() => _currentStep--);
+    } else {
+      widget.onExit();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isCompleting) {
+      return CustomLoadingWidget(
+        duration: const Duration(seconds: 3),
+        onLoadingComplete: _onCompletionLoadingEnd,
+      );
+    }
+
+    final currentStepData = customizationStepsData[_currentStep];
+    final String title = currentStepData['title'];
+    final String prefix = currentStepData['prefix'];
+    final int count = currentStepData['count'];
+    final String currentStepKey = currentStepData['key'];
+    final double progressBarWidth = 200.0;
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20), onPressed: _onPreviousStep),
+                Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('${_currentStep + 1}', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                        Text('/${customizationStepsData.length}', style: TextStyle(color: Colors.grey.shade400, fontSize: 15)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      width: progressBarWidth,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade800,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut,
+                          width: progressBarWidth * ((_currentStep + 1) / customizationStepsData.length),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                IconButton(icon: const Icon(Icons.close, color: Colors.white, size: 24), onPressed: widget.onExit),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Center(
+              child: LayeredCharacter(selectedParts: _selectedParts),
+            ),
+          ),
+          Expanded(
+            flex: 4,
+            child: Container(
+              padding: const EdgeInsets.only(top: 20),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  Text(title, style: const TextStyle(color: Colors.black, fontSize: 24, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: GridView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: count,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 10, mainAxisSpacing: 10),
+                      itemBuilder: (context, index) {
+                        final itemNumber = (index + 1).toString().padLeft(2, '0');
+                        final fileName = '$prefix$itemNumber.png';
+                        final isSelected = _selectedParts[currentStepKey] == fileName;
+
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedParts[currentStepKey] = fileName),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(color: isSelected ? Colors.blue : Colors.grey.shade300, width: isSelected ? 3 : 1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.asset('assets/images/$fileName', fit: BoxFit.contain, errorBuilder: (c,e,s) => Container(color: Colors.grey.shade200, child: Center(child: Text(itemNumber, style: const TextStyle(color: Colors.black))))),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: ElevatedButton(
+                      onPressed: isNextButtonEnabled ? _onNextStep : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isNextButtonEnabled ? Colors.blue : Colors.grey.shade700,
+                        minimumSize: const Size(double.infinity, 50),
+                      ),
+                      child: Text(
+                        _currentStep == customizationStepsData.length - 1 ? '완료' : '다음',
+                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- ✨ 새로운 펀치 효과가 적용된 캐릭터 위젯 ---
+class LayeredCharacter extends StatefulWidget {
+  final Map<String, String?> selectedParts;
+  final double width;
+  final Function(bool isPunching)? onPunch;
+
+  const LayeredCharacter({
+    super.key,
+    required this.selectedParts,
+    this.width = 250,
+    this.onPunch,
+  });
+
+  @override
+  State<LayeredCharacter> createState() => _LayeredCharacterState();
+}
+
+class _LayeredCharacterState extends State<LayeredCharacter> {
+  bool _showPunch = false;
+
+  void _triggerPunchEffect() {
+    widget.onPunch?.call(true);
+    setState(() => _showPunch = true);
+    Timer(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        setState(() => _showPunch = false);
+        widget.onPunch?.call(false);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _triggerPunchEffect,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Image.asset('assets/images/base_character.png', width: widget.width, errorBuilder: (c,e,s) => Container(width: widget.width * 0.8, height: widget.width * 1.4, color: Colors.grey, child: const Center(child: Text("Base")))),
+          ..._buildLayers(),
+          if (_showPunch)
+            Image.asset('assets/images/punch.png', width: widget.width, errorBuilder: (c,e,s) => const SizedBox.shrink()),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildLayers() {
+    final List<Widget> layers = [];
+    final layerOrder = ['clothes', 'eyes', 'nose', 'mouth', 'eyebrow', 'hair', 'beard', 'accessories'];
+    for (var key in layerOrder) {
+      final part = widget.selectedParts[key];
+      if (part != null) {
+        layers.add(Image.asset('assets/images/$part', width: widget.width, errorBuilder: (c, e, s) => const SizedBox.shrink()));
+      }
+    }
+    return layers;
+  }
+}
+
+
+// --- 최종 확인 페이지 ---
+class FinalConfirmationPage extends StatefulWidget {
+  final Map<String, String?> selectedParts;
+  final VoidCallback onRedo;
+  final VoidCallback onConfirm;
+
+  const FinalConfirmationPage({super.key, required this.selectedParts, required this.onRedo, required this.onConfirm});
+
+  @override
+  State<FinalConfirmationPage> createState() => _FinalConfirmationPageState();
+}
+
+class _FinalConfirmationPageState extends State<FinalConfirmationPage> {
+  bool _isPunching = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent, // 배경을 투명하게 하여 Stack 배경이 보이도록 함
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.asset(
+            'assets/images/punch_background.png',
+            fit: BoxFit.cover,
+            errorBuilder: (c,e,s) => Container(color: const Color(0xFF232323)), // 에러 시 기본 배경색
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 100),
+                  const Text('생성된 캐릭터가\n마음에 드나요?', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w600)),
+                  const Spacer(),
+                  Center(
+                    child: LayeredCharacter(
+                      selectedParts: widget.selectedParts,
+                      onPunch: (isPunching) => setState(() => _isPunching = isPunching),
+                    ),
+                  ),
+                  const Spacer(),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: widget.onConfirm,
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0x7F7F8AFF), padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100))),
+                          child: const Text('네! 마음에 들어요', style: TextStyle(color: Colors.white, fontSize: 18)),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: widget.onRedo,
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0x7FFF5252), padding: const EdgeInsets.symmetric(vertical: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100))),
+                          child: const Text('다시 제작할래요', style: TextStyle(color: Colors.white, fontSize: 18)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- 최종 완료 페이지 ---
+class SuccessPage extends StatefulWidget {
+  final Map<String, String?> selectedParts;
+  const SuccessPage({super.key, required this.selectedParts});
+
+  @override
+  State<SuccessPage> createState() => _SuccessPageState();
+}
+
+class _SuccessPageState extends State<SuccessPage> {
+  bool _isPunching = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+       backgroundColor: Colors.transparent,
+       body: Stack(
+         fit: StackFit.expand,
+         children: [
+           Image.asset(
+              'assets/images/punch_background.png',
+              fit: BoxFit.cover,
+              errorBuilder: (c,e,s) => Container(color: const Color(0xFF232323)),
+            ),
+           SafeArea(
+             child: Column(
+               mainAxisAlignment: MainAxisAlignment.center,
+               children: [
+                 const Spacer(flex: 2),
+                 const Text("캐릭터 생성 완료!", style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                 const SizedBox(height: 40),
+                 LayeredCharacter(
+                   selectedParts: widget.selectedParts,
+                   onPunch: (isPunching) => setState(() => _isPunching = isPunching),
+                 ),
+                 const Spacer(flex: 3),
+                 Padding(
+                   padding: const EdgeInsets.all(20.0),
+                   child: ElevatedButton(
+                     onPressed: () {
+                       Navigator.of(context).pushAndRemoveUntil(
+                         MaterialPageRoute(builder: (_) => const HomeScreen()),
+                         (route) => false,
+                       );
+                     },
+                     style: ElevatedButton.styleFrom(
+                       backgroundColor: const Color(0x7F424242),
+                       minimumSize: const Size(double.infinity, 50),
+                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(100)),
+                     ),
+                     child: const Text('홈으로 돌아가기', style: TextStyle(color: Colors.white, fontSize: 20)),
+                   ),
+                 ),
+               ],
+             ),
+           ),
+         ],
+       ),
+    );
+  }
+}
+
+
+// --- 기존 분리된 위젯들 ---
+class _MessageSection extends StatelessWidget {
+  const _MessageSection();
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox.shrink(); // 로딩 위젯에서 직접 처리하므로 비워둡니다.
+  }
+}
+
+class _BottomSection extends StatelessWidget {
+  final Animation<double> progressAnimation;
+  final Animation<double> characterAnimation;
+  const _BottomSection({required this.progressAnimation, required this.characterAnimation});
+
+  @override
+  Widget build(BuildContext context) {
+    // ✨ 핵심 수정: 로딩 UI 레이아웃 변경
+    return AnimatedBuilder(
+      animation: Listenable.merge([progressAnimation, characterAnimation]),
+      builder: (context, child) {
+        return Stack(
+          children: [
+            Positioned(
+              bottom: 100,
+
+              left: 30,
+              right: 30,
+              child: Container(
+                height: 8,
+                decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(4)),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Container(
+                    width: (MediaQuery.of(context).size.width - 60) * progressAnimation.value,
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4)),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 115,
+              width: MediaQuery.of(context).size.width,
+              child: const Column(
+                children: [
+                  Text(
+                    '내가 스트레스 풀릴때 까지 때려줄께',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    '조금만 기다려',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              left: characterAnimation.value * (MediaQuery.of(context).size.width - 80),
+              bottom: 100,
+              child: Image.asset('assets/images/hit_loding.png', width: 80, height: 80, fit: BoxFit.contain),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
