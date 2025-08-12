@@ -5,6 +5,7 @@ import 'dart:ui'; // 블러 효과를 위해 추가
 import 'package:shared_preferences/shared_preferences.dart';
 import 'hit_screen.dart';
 import '../../home/view/home_screen.dart'; // 홈스크린 경로 추가
+import '../../my/premium/premium.dart';
 
 // --- 데이터 모델 ---
 const List<Map<String, dynamic>> customizationStepsData = [
@@ -136,28 +137,77 @@ class HitLoadingScreen extends StatefulWidget {
   State<HitLoadingScreen> createState() => _HitLoadingScreenState();
 }
 
-class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProviderStateMixin {
+class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _modalController;
   late Animation<double> _modalAnimation;
+  PageController? _pageController;
 
   double _dragOffset = 0.0;
   bool _isAppLoading = true;
   bool _showModal = false;
+  int _currentModalPage = 0; // 0: 멤버십, 1: 캐릭터 선택
   int _currentMainPage = 0;
   bool _isPremiumMember = false;
   String? _selectedCharacter;
+  bool _isExiting = false; // 홈으로 이동 중 중복 네비게이션 방지
 
   @override
   void initState() {
     super.initState();
+
+    // WidgetsBindingObserver 등록
+    WidgetsBinding.instance.addObserver(this);
+
     _checkPremiumMembership();
     _modalController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _modalAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(CurvedAnimation(parent: _modalController, curve: Curves.easeOutBack));
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 화면이 다시 표시될 때마다 프리미엄 멤버십 상태 확인
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPremiumMembership();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // 앱이 다시 활성화될 때 프리미엄 상태 확인
+      _checkPremiumMembership();
+    }
+  }
+
   void _checkPremiumMembership() async {
     final prefs = await SharedPreferences.getInstance();
-    _isPremiumMember = prefs.getBool('is_premium_member') ?? true;
+
+    final isPremium = prefs.getBool('is_premium_member') ?? false;
+    final expiryTime = prefs.getInt('membership_expiry') ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    // 만료된 프리미엄 멤버십 체크
+    if (isPremium && expiryTime > 0 && now > expiryTime) {
+      // 만료된 경우 프리미엄 상태 해제
+      await prefs.setBool('is_premium_member', false);
+      await prefs.remove('membership_type');
+      await prefs.remove('membership_expiry');
+
+      if (mounted) {
+        setState(() {
+          _isPremiumMember = false;
+        });
+      }
+    } else if (isPremium != _isPremiumMember) {
+      // 프리미엄 상태가 변경된 경우
+      if (mounted) {
+        setState(() {
+          _isPremiumMember = isPremium;
+        });
+      }
+    }
   }
 
   void _onLoadingComplete() {
@@ -169,11 +219,47 @@ class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProvider
       _modalController.forward();
     }
   }
+  void _nextModalPage() {
+    if (_currentModalPage < 1 && _pageController != null) {
+      _pageController!.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      setState(() {
+        _currentModalPage = 1;
+      });
+    }
+  }
 
+  void _previousModalPage() {
+    if (_currentModalPage > 0 && _pageController != null) {
+      _pageController!.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      setState(() {
+        _currentModalPage = 0;
+      });
+    }
+  }
   void _goToPage(int page) {
     setState(() {
       _currentMainPage = page;
     });
+  }
+
+  void _exitToHome() {
+    if (_isExiting || !mounted) return;
+    _isExiting = true;
+
+    // 진행 중인 애니메이션 중지
+    _modalController.stop();
+
+    // 홈 화면으로 직접 이동하고 모든 스택 제거
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+          (route) => false,
+    );
   }
 
   void _startHitGame() {
@@ -185,6 +271,11 @@ class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProvider
   @override
   void dispose() {
     _modalController.dispose();
+    _pageController?.dispose();
+
+    // WidgetsBindingObserver 해제
+    WidgetsBinding.instance.removeObserver(this);
+
     super.dispose();
   }
 
@@ -284,6 +375,7 @@ class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProvider
     }
   }
 
+
   Widget _buildMembershipPage() {
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -313,6 +405,201 @@ class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProvider
             ],
           ),
           const Spacer(flex: 2),
+        ],
+      ),
+    );
+  }
+
+  // 프리미엄 멤버용 모달
+  Widget _buildPremiumMemberModal() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 상단 네비게이션 바
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // 왼쪽 화살표 아이콘
+              GestureDetector(
+                onTap: _exitToHome,
+                child: Icon(
+                  Icons.arrow_back,
+                  color: Colors.white70,
+                  size: 24,
+                ),
+              ),
+
+              // 오른쪽 X 아이콘
+              GestureDetector(
+                onTap: _exitToHome,
+                child: Icon(
+                  Icons.close,
+                  color: Colors.white70,
+                  size: 24,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 30),
+
+          // 프리미엄 멤버십 전용 헤더 텍스트
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '캐릭터 생성 옵션',
+                style: TextStyle(
+                  fontSize: 24,
+                  color: Colors.grey.shade300,
+                ),
+              ),
+              const SizedBox(height: 30),
+            ],
+          ),
+
+          // 기본 섹션
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '기본',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.lightBlue.shade300,
+                ),
+              ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () {
+                  // 기본 버전 버튼을 눌렀을 때 캐릭터 선택 페이지로 이동
+                  _nextModalPage();
+                },
+                child: Container(
+                  width: double.infinity,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A2A2A),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      '기본 버전',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 30),
+
+          // 프리미엄 멤버십 전용 섹션
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '프리미엄 멤버십 전용',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.orange.shade400,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  // 프롬프트 입력하기 버튼
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _isPremiumMember ? () {
+                        // 프리미엄 사용자만 사용 가능
+                        // TODO: 프롬프트 입력 기능 구현
+                      } : () {
+                        // 일반 사용자는 프리미엄 화면으로 이동
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PremiumScreen(),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: _isPremiumMember
+                              ? const Color(0xFF2A2A2A)
+                              : Colors.grey.shade600,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '프롬프트 입력하기',
+                            style: TextStyle(
+                              color: _isPremiumMember
+                                  ? Colors.white
+                                  : Colors.grey.shade400,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // 나만의 커스터마이징 하기 버튼
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _isPremiumMember ? () {
+                        // 프리미엄 사용자만 사용 가능
+                        // TODO: 커스터마이징 기능 구현
+                      } : () {
+                        // 일반 사용자는 프리미엄 화면으로 이동
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PremiumScreen(),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: _isPremiumMember
+                              ? const Color(0xFF2A2A2A)
+                              : Colors.grey.shade600,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '나만의 커스터마이징 하기',
+                            style: TextStyle(
+                              color: _isPremiumMember
+                                  ? Colors.white
+                                  : Colors.grey.shade400,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          const Spacer(),
         ],
       ),
     );
