@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ShopScreen extends StatefulWidget {
-  final VoidCallback? onBackToHome; // 홈으로 돌아가는 콜백 추가
+  final VoidCallback? onBackToHome;
   
   const ShopScreen({super.key, this.onBackToHome});
 
@@ -13,6 +14,17 @@ class _ShopScreenState extends State<ShopScreen> {
   int _selectedCategory = 0; // 0: 헤어, 1: 옷, 2: 무기
   int _selectedItemIndex = -1; // 선택된 아이템 인덱스 (-1은 선택 없음)
   bool _showMyItemsOnly = false; // 나의 아이템만 보기 토글 상태
+  bool _prefsLoaded = false; // SharedPreferences 로드 완료 여부
+  
+  // 재화 관리 - 단순화
+  int _currentCurrency = 2000;
+  
+  // 구매한 아이템들 (카테고리별로 저장)
+  final Map<int, List<int>> _purchasedItems = {
+    0: [], // 헤어: 구매한 아이템 인덱스 리스트
+    1: [], // 옷: 구매한 아이템 인덱스 리스트
+    2: [], // 무기: 구매한 아이템 인덱스 리스트
+  };
   
   // 현재 적용된 아이템들 (카테고리별로 저장)
   final Map<int, int> _appliedItems = {
@@ -41,7 +53,7 @@ class _ShopScreenState extends State<ShopScreen> {
       'assets/images/clothes_5.png',
       'assets/images/clothes_6.png',
     ],
-    // 무기 아이템들 (임시로 헤어 이미지 사용, 실제 무기 이미지가 있다면 교체)
+    // 무기 아이템들 (임시로 헤어 이미지 사용)
     [
       'assets/images/hair_1.png',
       'assets/images/hair_2.png',
@@ -65,6 +77,149 @@ class _ShopScreenState extends State<ShopScreen> {
     'assets/icons/clothes_on.png',
     'assets/icons/wepon_on.png',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  // 데이터 로드 (재화 로직 단순화)
+  Future<void> _loadData() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 아이템/착용 상태는 기존대로 로드
+    final purchasedHair = prefs.getStringList('purchased_hair')?.map((e) => int.tryParse(e) ?? -1).where((e) => e >= 0).toList() ?? [];
+    final purchasedClothes = prefs.getStringList('purchased_clothes')?.map((e) => int.tryParse(e) ?? -1).where((e) => e >= 0).toList() ?? [];
+    final purchasedWeapons = prefs.getStringList('purchased_weapons')?.map((e) => int.tryParse(e) ?? -1).where((e) => e >= 0).toList() ?? [];
+    final appliedHair = prefs.getInt('applied_hair') ?? -1;
+    final appliedClothes = prefs.getInt('applied_clothes') ?? -1;
+    final appliedWeapons = prefs.getInt('applied_weapons') ?? -1;
+
+    // ★ 재화: 저장값이 없거나 0/음수면 항상 2000으로 복구
+    int currency = prefs.getInt('user_currency') ?? 2000;
+    if (currency <= 0) {
+      currency = 2000;
+      await prefs.setInt('user_currency', currency);
+    } else if (!prefs.containsKey('user_currency')) {
+      // 키 자체가 없던 최초 실행 케이스: 읽은 기본값(2000)을 저장
+      await prefs.setInt('user_currency', currency);
+    }
+
+    setState(() {
+      _currentCurrency = currency;
+      _purchasedItems[0] = purchasedHair;
+      _purchasedItems[1] = purchasedClothes;
+      _purchasedItems[2] = purchasedWeapons;
+      _appliedItems[0] = appliedHair;
+      _appliedItems[1] = appliedClothes;
+      _appliedItems[2] = appliedWeapons;
+      _prefsLoaded = true;
+    });
+  }
+
+  // 데이터 저장 (재화 로직 단순화)
+  Future<void> _saveData() async {
+    if (!_prefsLoaded) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('user_currency', _currentCurrency);
+    await prefs.setStringList('purchased_hair', _purchasedItems[0]!.map((e) => e.toString()).toList());
+    await prefs.setStringList('purchased_clothes', _purchasedItems[1]!.map((e) => e.toString()).toList());
+    await prefs.setStringList('purchased_weapons', _purchasedItems[2]!.map((e) => e.toString()).toList());
+    await prefs.setInt('applied_hair', _appliedItems[0]!);
+    await prefs.setInt('applied_clothes', _appliedItems[1]!);
+    await prefs.setInt('applied_weapons', _appliedItems[2]!);
+  }
+
+  // 아이템 구매
+  void _purchaseItem() {
+    if (_selectedItemIndex < 0) return;
+
+    final itemPrice = 200;
+
+    // 재화가 충분한지 확인
+    if (_currentCurrency < itemPrice) {
+      _showInsufficientCurrencyDialog();
+      return;
+    }
+
+    // 이미 구매한 아이템인지 확인
+    if (_purchasedItems[_selectedCategory]!.contains(_selectedItemIndex)) {
+      _showAlreadyPurchasedDialog();
+      return;
+    }
+
+    // 구매 처리 (재화 음수 방지)
+    setState(() {
+      _currentCurrency = (_currentCurrency - itemPrice).clamp(0, 1 << 31);
+      _purchasedItems[_selectedCategory]!.add(_selectedItemIndex);
+    });
+
+    // 데이터 저장
+    if (_prefsLoaded) {
+      _saveData();
+    }
+
+    // 구매 성공 다이얼로그
+    _showPurchaseSuccessDialog();
+  }
+
+  // 재화 부족 다이얼로그
+  void _showInsufficientCurrencyDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('재화 부족'),
+          content: const Text('재화가 부족합니다. 더 많은 재화를 모아주세요.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('확인'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // 이미 구매한 아이템 다이얼로그
+  void _showAlreadyPurchasedDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('이미 구매한 아이템'),
+          content: const Text('이미 구매한 아이템입니다.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('확인'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // 구매 성공 다이얼로그
+  void _showPurchaseSuccessDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('구매 완료!'),
+          content: const Text('아이템이 성공적으로 구매되었습니다.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('확인'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   // 현재 적용된 아이템들로 캐릭터 이미지 생성
   Widget _buildCharacterWithItems() {
@@ -152,9 +307,9 @@ class _ShopScreenState extends State<ShopScreen> {
                         height: 20,
                       ),
                       const SizedBox(width: 4),
-                      const Text(
-                        '200',
-                        style: TextStyle(
+                      Text(
+                        '$_currentCurrency',
+                        style: const TextStyle(
                           color: Colors.black,
                           fontWeight: FontWeight.w600,
                           fontSize: 16,
@@ -198,10 +353,13 @@ class _ShopScreenState extends State<ShopScreen> {
                           // 터치 영역
                           Positioned.fill(
                             child: GestureDetector(
-                              onTap: () {
+                              onTap: () async {
                                 setState(() {
                                   _showMyItemsOnly = !_showMyItemsOnly;
                                 });
+                                if (_prefsLoaded) {
+                                  await _saveData();
+                                }
                               },
                             ),
                           ),
@@ -340,8 +498,10 @@ class _ShopScreenState extends State<ShopScreen> {
                 Row(
                   children: [
                     IconButton(
-                      onPressed: () {
-                        // X 버튼 클릭 시 홈 화면으로 이동
+                      onPressed: () async {
+                        if (_prefsLoaded) {
+                          await _saveData();
+                        }
                         if (widget.onBackToHome != null) {
                           widget.onBackToHome!();
                         }
@@ -354,9 +514,11 @@ class _ShopScreenState extends State<ShopScreen> {
                     ),
                     Expanded(
                       child: ElevatedButton(
-                        onPressed: () {},
+                        onPressed: _selectedItemIndex >= 0 ? _purchaseItem : null,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2F2F2F),
+                          backgroundColor: _selectedItemIndex >= 0 
+                              ? const Color(0xFF2F2F2F) 
+                              : Colors.grey.shade400,
                           padding: const EdgeInsets.symmetric(vertical: 8), // 구입버튼 크기
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
@@ -371,10 +533,12 @@ class _ShopScreenState extends State<ShopScreen> {
                               height: 30,
                             ),
                             const SizedBox(width: 8),
-                            const Text(
-                              '200으로 구입하기',
+                            Text(
+                              _selectedItemIndex >= 0 
+                                  ? '200으로 구입하기'
+                                  : '아이템을 선택하세요',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: _selectedItemIndex >= 0 ? Colors.white : Colors.grey.shade600,
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -384,7 +548,7 @@ class _ShopScreenState extends State<ShopScreen> {
                       ),
                     ),
                     IconButton(
-                      onPressed: () {
+                      onPressed: () async {
                         setState(() {
                           // 착용하고 있던 모든 아이템 해제
                           _appliedItems[0] = -1; // 헤어 해제
@@ -393,6 +557,9 @@ class _ShopScreenState extends State<ShopScreen> {
                           // 선택된 아이템도 초기화
                           _selectedItemIndex = -1;
                         });
+                        if (_prefsLoaded) {
+                          await _saveData();
+                        }
                       },
                       icon: Image.asset(
                         'assets/icons/undo_btn.png',
@@ -434,33 +601,74 @@ class _ShopScreenState extends State<ShopScreen> {
   Widget _buildShopItem(String imagePath, int price, int itemIndex) {
     final isSelected = _selectedItemIndex == itemIndex;
     final isApplied = _appliedItems[_selectedCategory] == itemIndex;
+    final isPurchased = _purchasedItems[_selectedCategory]!.contains(itemIndex);
+    
+    // 아이템 상태에 따른 색상과 테두리 결정
+    Color itemBorderColor = Colors.transparent;
+    Color itemBackgroundColor = Colors.transparent;
+    
+    if (isApplied) {
+      // 착용중인 아이템
+      itemBorderColor = Colors.blue;
+      itemBackgroundColor = Colors.blue.withOpacity(0.1);
+    } else if (isPurchased) {
+      // 보유중인 아이템
+      itemBorderColor = Colors.green;
+      itemBackgroundColor = Colors.green.withOpacity(0.1);
+    }
+    
+    // "나의 아이템만 보기"가 켜져있고 구매하지 않은 아이템이면 표시하지 않음
+    if (_showMyItemsOnly && !isPurchased) {
+      return Container(
+        width: 80,
+        height: 110,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(
+          child: Text(
+            '구매 필요',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 12,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
     
     return GestureDetector(
       onTap: () {
         setState(() {
           _selectedItemIndex = itemIndex;
-          // 한 번 탭으로 아이템 적용/해제
-                  if (_appliedItems[_selectedCategory] == itemIndex) {
-          // 이미 적용된 아이템이면 해제 (적용 안됨 상태로)
-          _appliedItems[_selectedCategory] = -1;
-        } else {
-          // 새로운 아이템 적용
-          _appliedItems[_selectedCategory] = itemIndex;
-        }
+
+          // 모든 아이템을 미리보기로 착용 가능 (구매 여부와 관계없이)
+          if (_appliedItems[_selectedCategory] == itemIndex) {
+            // 이미 착용중인 아이템이면 해제
+            _appliedItems[_selectedCategory] = -1;
+          } else {
+            // 새로운 아이템 착용 (기존 착용 아이템은 자동 해제)
+            _appliedItems[_selectedCategory] = itemIndex;
+          }
+          
+          // 구매한 아이템의 착용 상태만 저장 (미리보기는 저장하지 않음)
+          if (isPurchased) {
+            _saveData();
+          }
         });
       },
       child: Container(
         width: 80,
         height: 110,
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFECECEC) : null, // 선택된 아이템: 회색, 그 외 없음
+          color: itemBackgroundColor, // 아이템 상태에 따른 배경색
           borderRadius: BorderRadius.circular(8),
-          border: (isApplied || isSelected)
-              ? Border.all(
-                  color: const Color(0xFFECECEC), // 선택 또는 적용: #ECECEC 테두리
-                  width: 2,
-                )
-              : null,
+          border: Border.all(
+            color: itemBorderColor, // 아이템 상태에 따른 테두리색
+            width: 2,
+          ),
         ),
         child: Column(
           children: [
@@ -493,10 +701,10 @@ class _ShopScreenState extends State<ShopScreen> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    price.toString(),
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontSize: 12,
+                    isApplied ? '착용중' : (isPurchased ? '보유중' : price.toString()),
+                    style: TextStyle(
+                      color: isApplied ? Colors.blue : (isPurchased ? Colors.green : Colors.black),
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
