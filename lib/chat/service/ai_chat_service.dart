@@ -18,7 +18,6 @@ class AiChatService {
   }) async {
     try {
       print('🤖 AI 채팅 요청: $message (사용자 분노: $userAnger, AI 분노: $aiAnger)');
-      print('🌐 요청 URL: ${ApiConfig.baseUrl}${ApiConfig.aiChat}');
       
       // 액세스 토큰 가져오기
       final accessToken = await _getAccessToken();
@@ -26,10 +25,20 @@ class AiChatService {
         throw Exception('액세스 토큰이 없습니다. 로그인이 필요합니다.');
       }
 
+      // 사용자 ID 가져오기
+      final userId = await _getUserId();
+      if (userId == null) {
+        throw Exception('사용자 ID를 가져올 수 없습니다.');
+      }
+
+      // 올바른 URL 구성: /ai/:userId/chat
+      final url = '${ApiConfig.aiChat}/$userId/chat';
+      print('🌐 요청 URL: ${ApiConfig.baseUrl}$url');
+
       print('🔑 액세스 토큰: ${accessToken.substring(0, 20)}...');
 
       final response = await _dio.post(
-        ApiConfig.aiChat,
+        url,
         data: {
           'message': message,
           'userAnger': userAnger,
@@ -44,6 +53,15 @@ class AiChatService {
       );
 
       print('✅ AI 채팅 응답 성공: ${response.data}');
+      
+      // 백엔드에서 String을 반환하므로 Map으로 변환
+      if (response.data is String) {
+        return {
+          'message': response.data,
+          'success': true,
+        };
+      }
+      
       return response.data;
     } on DioException catch (e) {
       print('❌ AI 채팅 API 오류: ${e.message}');
@@ -76,8 +94,17 @@ class AiChatService {
         throw Exception('액세스 토큰이 없습니다. 로그인이 필요합니다.');
       }
 
+      // 사용자 ID 가져오기
+      final userId = await _getUserId();
+      if (userId == null) {
+        throw Exception('사용자 ID를 가져올 수 없습니다.');
+      }
+
+      // 올바른 URL 구성: /ai/:userId/generate-image-code
+      final url = '${ApiConfig.aiGenerateImage}/$userId/generate-image-code';
+
       final response = await _dio.post(
-        ApiConfig.aiGenerateImage,
+        url,
         data: {
           'description': description,
         },
@@ -108,6 +135,17 @@ class AiChatService {
       return prefs.getString('access_token');
     } catch (e) {
       print('❌ 액세스 토큰 가져오기 실패: $e');
+      return null;
+    }
+  }
+
+  // 사용자 ID 가져오기
+  Future<String?> _getUserId() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('user_id');
+    } catch (e) {
+      print('❌ 사용자 ID 가져오기 실패: $e');
       return null;
     }
   }

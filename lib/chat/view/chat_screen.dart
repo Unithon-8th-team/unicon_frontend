@@ -3,7 +3,14 @@ import '../service/chat_service.dart';
 import 'chat_initial_screen.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final int userAnger;
+  final int aiExpression;
+  
+  const ChatScreen({
+    super.key,
+    required this.userAnger,
+    required this.aiExpression,
+  });
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -15,6 +22,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   bool _isAiTyping = false; // AI가 답장하고 있는지 여부
   late AnimationController _typingAnimationController;
   final ChatService _chatService = ChatService();
+  
+  // AI 대화 횟수 관리
+  int _remainingChats = 5;
   
   // 오늘 날짜를 한국어 형식으로 가져오기
   String get todayDate {
@@ -58,8 +68,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     try {
       final response = await _chatService.sendMessage(
         message: userMessage,
-        userAnger: 3, // 기본값, 나중에 사용자 설정에서 가져올 수 있음
-        aiAnger: 3,  // 기본값, 나중에 AI 설정에서 가져올 수 있음
+        userAnger: widget.userAnger, // 기본값, 나중에 사용자 설정에서 가져올 수 있음
+        aiAnger: widget.aiExpression,  // 기본값, 나중에 AI 설정에서 가져올 수 있음
       );
       
       if (mounted) {
@@ -70,7 +80,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           if (_chatService.isErrorResponse(response)) {
             aiReply = response['fallbackReply'] ?? '죄송합니다. 응답을 생성할 수 없습니다.';
           } else {
-            aiReply = response['reply'] ?? '죄송합니다. 응답을 생성할 수 없습니다.';
+            // 백엔드에서 String을 반환하므로 message 키로 접근
+            aiReply = response['message'] ?? response['reply'] ?? '죄송합니다. 응답을 생성할 수 없습니다.';
+            
+            // AI 응답이 성공적으로 왔을 때 대화 횟수 감소
+            setState(() {
+              _remainingChats = (_remainingChats - 1).clamp(0, 5);
+            });
+            
+            // 대화 횟수가 0이 되면 팝업 표시
+            if (_remainingChats == 0) {
+              _showChatLimitPopup();
+            }
           }
           
           _messages.add({
@@ -183,27 +204,54 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: Colors.black54,
+                          color: Colors.transparent,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Icon(
-                          Icons.arrow_back,
+                          Icons.chevron_left,
                           color: Colors.white,
-                          size: 20,
+                          size: 40,
                         ),
                       ),
                     ),
-                    // Points display
+                    // AI 대화 횟수 표시
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.black54,
+                        color: const Color(0xFF2A2A2A), // 어두운 회색 배경
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('5', style: TextStyle(color: Colors.white, fontSize: 16)),
-                          Icon(Icons.add, color: Colors.orange, size: 20),
+                          // 종이비행기 아이콘 (chat_cnt.png)
+                          Image.asset(
+                            'assets/icons/chat_cnt.png',
+                            width: 22,
+                            height: 22,
+                          ),
+                          const SizedBox(width: 8),
+                          // 대화 횟수 (5)
+                          Text(
+                            '$_remainingChats',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // 플러스 버튼 (chat_plus.png)
+                          GestureDetector(
+                            onTap: () {
+                              // 대화 횟수 추가 기능 (나중에 구현)
+                            },
+                            child: Image.asset(
+                              'assets/icons/chat_plus.png',
+                              width: 26,
+                              height: 26,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -419,7 +467,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                   decoration: const BoxDecoration(
                     shape: BoxShape.circle,
                     image: DecorationImage(
-                      image: AssetImage('assets/images/propil_bg.png'),
+                      image: AssetImage('assets/images/profile_bg.png'),
                       fit: BoxFit.cover,
                     ),
                   ),
@@ -432,7 +480,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     decoration: const BoxDecoration(
                       shape: BoxShape.circle,
                       image: DecorationImage(
-                        image: AssetImage('assets/images/propil_1.png'),
+                        image: AssetImage('assets/images/profile_1.png'),
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -478,6 +526,38 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           const SizedBox(width: 50),
         ],
       ),
+    );
+  }
+
+  // 대화 횟수 한도 도달 시 팝업 표시
+  void _showChatLimitPopup() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF2A2A2A),
+          title: const Text(
+            '대화 횟수 한도 도달',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: const Text(
+            '오늘의 무료 AI 대화 횟수를 모두 사용했습니다.\n코인을 사용하거나 구매하여 대화 횟수를 늘려보세요!',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text(
+                '확인',
+                style: TextStyle(color: Colors.orange),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

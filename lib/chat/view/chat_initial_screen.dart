@@ -187,7 +187,10 @@ class _ChatInitialScreenState extends State<ChatInitialScreen> {
                                 Navigator.pushReplacement(
                                   context,
                                   PageRouteBuilder(
-                                    pageBuilder: (context, animation, secondaryAnimation) => const ChatScreen(),
+                                    pageBuilder: (context, animation, secondaryAnimation) => ChatScreen(
+                                      userAnger: _angerLevel + 1, // 0~4를 1~5로 변환
+                                      aiExpression: _expressionLevel + 1, // 0~4를 1~5로 변환
+                                    ),
                                     transitionsBuilder: (context, animation, secondaryAnimation, child) {
                                       return child; // 애니메이션 없음
                                     },

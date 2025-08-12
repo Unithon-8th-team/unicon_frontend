@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:ui'; // ImageFilter를 사용하기 위해 dart:ui를 import 합니다.
+import 'package:shared_preferences/shared_preferences.dart';
 
 // 페이지 이동을 위한 import
 import 'servicelaw.dart';
@@ -419,13 +420,128 @@ class _PremiumScreenState extends State<PremiumScreen> {
       child: Padding(
         // 이 값을 조절하여 버튼의 하단 여백을 변경할 수 있습니다.
         padding: const EdgeInsets.only(bottom: 12.0, left: 16.0, right: 16.0),
-        child: Image.asset(
-          _selectedMembership == MembershipType.yearly
-              ? 'assets/images/membership_year.png'
-              : 'assets/images/membership_month.png',
+        child: GestureDetector(
+          onTap: () => _handleMembershipPurchase(),
+          child: Image.asset(
+            _selectedMembership == MembershipType.yearly
+                ? 'assets/images/membership_year.png'
+                : 'assets/images/membership_month.png',
+          ),
         ),
       ),
     );
+  }
+
+  // 멤버십 가입 처리
+  Future<void> _handleMembershipPurchase() async {
+    try {
+      // 로딩 표시
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const AlertDialog(
+            backgroundColor: Color(0xFF2A2A2A),
+            content: Row(
+              children: [
+                CircularProgressIndicator(color: Colors.orange),
+                SizedBox(width: 20),
+                Text(
+                  '멤버십 가입 중...',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+
+      // 실제 결제 로직은 여기에 구현 (현재는 시뮬레이션)
+      await Future.delayed(const Duration(seconds: 2));
+
+      // SharedPreferences에 멤버십 상태 저장
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_premium_member', true);
+      await prefs.setString('membership_type', _selectedMembership.name);
+      await prefs.setInt('membership_expiry', DateTime.now().add(
+        _selectedMembership == MembershipType.yearly 
+            ? const Duration(days: 365)
+            : const Duration(days: 30)
+      ).millisecondsSinceEpoch);
+
+      // 로딩 다이얼로그 닫기
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // 성공 메시지 표시
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF2A2A2A),
+              title: const Text(
+                '멤버십 가입 완료!',
+                style: TextStyle(color: Colors.white),
+              ),
+              content: Text(
+                '${_selectedMembership == MembershipType.yearly ? '연간' : '월간'} 프리미엄 멤버십이 성공적으로 가입되었습니다!',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(context).pop(); // PremiumScreen 닫기
+                  },
+                  child: const Text(
+                    '확인',
+                    style: TextStyle(color: Colors.orange),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      }
+    } catch (e) {
+      // 로딩 다이얼로그 닫기
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // 오류 메시지 표시
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF2A2A2A),
+              title: const Text(
+                '가입 실패',
+                style: TextStyle(color: Colors.red),
+              ),
+              content: Text(
+                '멤버십 가입 중 오류가 발생했습니다: $e',
+                style: const TextStyle(color: Colors.white70),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text(
+                    '확인',
+                    style: TextStyle(color: Colors.orange),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      }
+    }
   }
 }
 
