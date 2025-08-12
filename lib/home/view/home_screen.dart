@@ -30,6 +30,13 @@ class _RefactoredScreenState extends State<RefactoredScreen> {
     1: -1, // 옷: 기본값 (적용 안됨)
     2: -1, // 무기: 기본값 (적용 안됨)
   };
+  
+  // 구매한 아이템들 (카테고리별로 저장)
+  final Map<int, List<int>> _purchasedItems = {
+    0: [], // 헤어: 구매한 아이템 인덱스 리스트
+    1: [], // 옷: 구매한 아이템 인덱스 리스트
+    2: [], // 무기: 구매한 아이템 인덱스 리스트
+  };
 
   @override
   void didChangeDependencies() {
@@ -57,6 +64,15 @@ class _RefactoredScreenState extends State<RefactoredScreen> {
       _appliedItems[0] = prefs.getInt('applied_hair') ?? -1;
       _appliedItems[1] = prefs.getInt('applied_clothes') ?? -1;
       _appliedItems[2] = prefs.getInt('applied_weapons') ?? -1;
+      
+      // 구매한 아이템 정보도 로드
+      final purchasedHair = prefs.getStringList('purchased_hair')?.map((e) => int.tryParse(e) ?? -1).where((e) => e >= 0).toList() ?? [];
+      final purchasedClothes = prefs.getStringList('purchased_clothes')?.map((e) => int.tryParse(e) ?? -1).where((e) => e >= 0).toList() ?? [];
+      final purchasedWeapons = prefs.getStringList('purchased_weapons')?.map((e) => int.tryParse(e) ?? -1).where((e) => e >= 0).toList() ?? [];
+      
+      _purchasedItems[0] = purchasedHair;
+      _purchasedItems[1] = purchasedClothes;
+      _purchasedItems[2] = purchasedWeapons;
     });
   }
 
@@ -90,15 +106,6 @@ class _RefactoredScreenState extends State<RefactoredScreen> {
         'assets/images/clothes_5.png',
         'assets/images/clothes_6.png',
       ],
-      // 무기 아이템들 (임시로 헤어 이미지 사용)
-      [
-        'assets/images/hair_1.png',
-        'assets/images/hair_2.png',
-        'assets/images/hair_3.png',
-        'assets/images/hair_4.png',
-        'assets/images/hair_5.png',
-        'assets/images/hair_6.png',
-      ],
     ];
 
     return Stack(
@@ -111,11 +118,11 @@ class _RefactoredScreenState extends State<RefactoredScreen> {
           height: 239,
           fit: BoxFit.contain,
         ),
-        // 헤어 아이템 (캐릭터 위에 오버레이)
-        if (_appliedItems[0] != null && _appliedItems[0]! >= 0)
+        // 헤어 아이템 (구매한 아이템 + 착용 중인 것만)
+        if (_appliedItems[0] != null && _appliedItems[0]! >= 0 && _purchasedItems[0]!.contains(_appliedItems[0]!))
           Positioned(
             top: -52,
-            left: -64,
+            left: -63,
             child: Image.asset(
               _categoryItems[0][_appliedItems[0]!],
               width: 280, // 홈 화면 캐릭터 크기에 맞춰 조정
@@ -123,27 +130,15 @@ class _RefactoredScreenState extends State<RefactoredScreen> {
               fit: BoxFit.contain,
             ),
           ),
-        // 옷 아이템 (캐릭터 위에 오버레이)
-        if (_appliedItems[1] != null && _appliedItems[1]! >= 0)
+        // 옷 아이템 (구매한 아이템 + 착용 중인 것만)
+        if (_appliedItems[1] != null && _appliedItems[1]! >= 0 && _purchasedItems[1]!.contains(_appliedItems[1]!))
           Positioned(
-            top: -28,
-            left: -26.8,
+            top: -53,
+            left: -85,
             child: Image.asset(
               _categoryItems[1][_appliedItems[1]!],
-              width: 226, // 홈 화면 캐릭터 크기에 맞춰 조정
-              height: 226,
-              fit: BoxFit.contain,
-            ),
-          ),
-        // 무기 아이템 (캐릭터 위에 오버레이)
-        if (_appliedItems[2] != null && _appliedItems[2]! >= 0)
-          Positioned(
-            top: 20,
-            left: 0,
-            child: Image.asset(
-              _categoryItems[2][_appliedItems[2]!],
-              width: 172, // 홈 화면 캐릭터 크기에 맞춰 조정
-              height: 172,
+              width: 322, // 홈 화면 캐릭터 크기에 맞춰 조정
+              height: 322,
               fit: BoxFit.contain,
             ),
           ),
