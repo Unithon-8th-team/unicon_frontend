@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async'; // RefactoredScreen의 Timer를 위해 필요
 import 'package:flutter_svg/flutter_svg.dart'; // RefactoredScreen의 SvgPicture를 위해 필요
+import 'package:shared_preferences/shared_preferences.dart'; // 추가
 
 // 공동 작업자의 다른 화면들 (경로는 실제 프로젝트 구조에 맞게 확인해주세요)
 import '../../chat/view/chat_initial_screen.dart'; // ChatInitialScreen으로 변경
@@ -19,17 +20,135 @@ class RefactoredScreen extends StatefulWidget {
 }
 
 class _RefactoredScreenState extends State<RefactoredScreen> {
-  int userCoins = 200;
+  int userCoins = 2000; // 기본값을 2000으로 설정
   String backgroundImagePath = 'assets/images/day_background.png';
   Timer? _timer;
+  
+  // 아이템 관련 상태 추가
+  final Map<int, int> _appliedItems = {
+    0: -1, // 헤어: 기본값 (적용 안됨)
+    1: -1, // 옷: 기본값 (적용 안됨)
+    2: -1, // 무기: 기본값 (적용 안됨)
+  };
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 화면이 다시 표시될 때마다 최신 데이터 로드
+    _loadAppliedItems();
+    _loadCurrency();
+  }
 
   @override
   void initState() {
     super.initState();
     _updateBackground();
+    _loadAppliedItems(); // 아이템 정보 로드 추가
+    _loadCurrency(); // 재화 정보 로드 추가
     _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
       _updateBackground();
     });
+  }
+
+  // 착용된 아이템 정보 로드
+  Future<void> _loadAppliedItems() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _appliedItems[0] = prefs.getInt('applied_hair') ?? -1;
+      _appliedItems[1] = prefs.getInt('applied_clothes') ?? -1;
+      _appliedItems[2] = prefs.getInt('applied_weapons') ?? -1;
+    });
+  }
+
+  // 재화 정보 로드
+  Future<void> _loadCurrency() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      userCoins = prefs.getInt('user_currency') ?? 2000;
+    });
+  }
+
+  // 현재 적용된 아이템들로 캐릭터 이미지 생성
+  Widget _buildCharacterWithItems() {
+    // 카테고리별 아이템 데이터 (ShopScreen과 동일)
+    final List<List<String>> _categoryItems = [
+      // 헤어 아이템들
+      [
+        'assets/images/hair_1.png',
+        'assets/images/hair_2.png',
+        'assets/images/hair_3.png',
+        'assets/images/hair_4.png',
+        'assets/images/hair_5.png',
+        'assets/images/hair_6.png',
+      ],
+      // 옷 아이템들
+      [
+        'assets/images/clothes_1.png',
+        'assets/images/clothes_2.png',
+        'assets/images/clothes_3.png',
+        'assets/images/clothes_4.png',
+        'assets/images/clothes_5.png',
+        'assets/images/clothes_6.png',
+      ],
+      // 무기 아이템들 (임시로 헤어 이미지 사용)
+      [
+        'assets/images/hair_1.png',
+        'assets/images/hair_2.png',
+        'assets/images/hair_3.png',
+        'assets/images/hair_4.png',
+        'assets/images/hair_5.png',
+        'assets/images/hair_6.png',
+      ],
+    ];
+
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // 기본 캐릭터
+        Image.asset(
+          'assets/images/character_1.png',
+          width: 172,
+          height: 239,
+          fit: BoxFit.contain,
+        ),
+        // 헤어 아이템 (캐릭터 위에 오버레이)
+        if (_appliedItems[0] != null && _appliedItems[0]! >= 0)
+          Positioned(
+            top: -52,
+            left: -64,
+            child: Image.asset(
+              _categoryItems[0][_appliedItems[0]!],
+              width: 280, // 홈 화면 캐릭터 크기에 맞춰 조정
+              height: 280,
+              fit: BoxFit.contain,
+            ),
+          ),
+        // 옷 아이템 (캐릭터 위에 오버레이)
+        if (_appliedItems[1] != null && _appliedItems[1]! >= 0)
+          Positioned(
+            top: -28,
+            left: -26.8,
+            child: Image.asset(
+              _categoryItems[1][_appliedItems[1]!],
+              width: 226, // 홈 화면 캐릭터 크기에 맞춰 조정
+              height: 226,
+              fit: BoxFit.contain,
+            ),
+          ),
+        // 무기 아이템 (캐릭터 위에 오버레이)
+        if (_appliedItems[2] != null && _appliedItems[2]! >= 0)
+          Positioned(
+            top: 20,
+            left: 0,
+            child: Image.asset(
+              _categoryItems[2][_appliedItems[2]!],
+              width: 172, // 홈 화면 캐릭터 크기에 맞춰 조정
+              height: 172,
+              fit: BoxFit.contain,
+            ),
+          ),
+      ],
+    );
   }
 
   @override
@@ -142,19 +261,14 @@ class _RefactoredScreenState extends State<RefactoredScreen> {
           ),
         ),
 
-        // 4. 캐릭터 이미지 - 화면 중앙에 배치
+        // 4. 캐릭터 이미지 - 기존 코드를 수정된 캐릭터로 교체
         Positioned(
           top: MediaQuery.of(context).size.height * 0.55, // 화면 높이의 55% 위치 (더 아래로)
           left: 0,
           right: 0,
           child: Align(
             alignment: Alignment.center,
-            child: Image.asset(
-              'assets/images/character_1.png',
-              width: 172,
-              height: 239,
-              fit: BoxFit.contain,
-            ),
+            child: _buildCharacterWithItems(), // 수정된 캐릭터 사용
           ),
         ),
       ],
@@ -178,12 +292,29 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _selectedIndex = index;
     });
+    
+    // 상점 화면으로 이동할 때 홈 화면 데이터 새로고침
+    if (index == 3) { // 상점 화면 인덱스
+      // 홈 화면으로 돌아올 때 데이터를 새로고침하기 위해 타이머 설정
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          setState(() {}); // 화면 새로고침
+        }
+      });
+    }
   }
 
   // 홈 화면으로 돌아가는 메서드
   void _onBackToHome() {
     setState(() {
       _selectedIndex = 2; // 홈 화면 인덱스
+    });
+    
+    // 홈 화면으로 돌아올 때 아이템과 재화 정보 새로고침
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) {
+        setState(() {}); // 화면 새로고침
+      }
     });
   }
 
@@ -194,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final List<Widget> _pages = <Widget>[
       const ChatInitialScreen(), // 0: 채팅 (ChatScreen에서 ChatInitialScreen으로 변경)
       const HitLoadingScreen(),  // 1: 때려줄게 (로딩 화면으로 시작)
-      const RefactoredScreen(), // 2: 홈 (사용자가 만든 화면)
+      RefactoredScreen(key: ValueKey(_selectedIndex)), // 2: 홈 (키 추가로 새로고침)
       ShopScreen(onBackToHome: _onBackToHome), // 3: 상점 (콜백 전달)
       const MyScreen(),   // 4: 마이
     ];
