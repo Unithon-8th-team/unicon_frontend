@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:ui'; // 블러 효과를 위해 추가
@@ -38,6 +39,8 @@ class _CustomLoadingWidgetState extends State<CustomLoadingWidget> with TickerPr
   late AnimationController _characterController;
   late Animation<double> _progressAnimation;
   late Animation<double> _characterAnimation;
+
+
 
   @override
   void initState() {
@@ -367,6 +370,7 @@ class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProvider
     return PromptPage(
       onExit: () => _goToPage(0),
       onComplete: (Map<String, String?> generatedParts) {
+        print('onComplete 실행');
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => FinalConfirmationPage(
@@ -470,12 +474,70 @@ class PromptPage extends StatefulWidget {
 }
 
 class _PromptPageState extends State<PromptPage> {
-  bool _isProcessing = false;
+  final TextEditingController _textController = TextEditingController();
 
-  void _startProcessing() {
+
+  bool _isProcessing = false;
+  final Dio _dio = Dio(BaseOptions(
+    baseUrl: 'http://10.0.2.2:3000',
+    connectTimeout: const Duration(seconds: 10),
+    receiveTimeout: const Duration(seconds: 10),
+  ));
+
+  Future<void> _startProcessing() async {
+    final message = _textController.text.trim();
+    print('🔍message: $message');
+
+    if (message.isEmpty) {
+      // 메시지가 비어있으면 경고 등 처리
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('캐릭터 모습을 입력해주세요')),
+      );
+      return;
+    }
     setState(() {
       _isProcessing = true;
     });
+    try {
+      final data = {
+        'message': message,
+      };
+
+      final response = await _dio.post(
+        '/ai/1234/generate-image-code',
+        data: data,
+        options: Options(
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          receiveTimeout: const Duration(seconds: 30),
+          validateStatus: (status) {
+            print('🔍 응답 상태 코드: $status');
+            return status! < 500;
+          },
+        ),
+      );
+      print('✅ 응답값: ${response.data}');
+
+      final dataMap = response.data as Map<String, dynamic>;
+
+      final Map<String, String?> convertedData = dataMap.map<String, String?>(
+            (String key, dynamic value) => MapEntry(key, value?.toString()),
+      );
+      setState(() => _isProcessing = false);
+
+
+      widget.onComplete(convertedData);
+    } catch (e) {
+      // 에러 처리
+      debugPrint('API 호출 실패: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
   }
 
   void _onProcessingComplete() {
@@ -494,10 +556,15 @@ class _PromptPageState extends State<PromptPage> {
   @override
   Widget build(BuildContext context) {
     if (_isProcessing) {
-      return CustomLoadingWidget(
-        duration: const Duration(seconds: 3),
-        onLoadingComplete: _onProcessingComplete,
-      );
+      if (_isProcessing) {
+        return const Center(
+          child: CircularProgressIndicator(),
+        );
+      }
+      // return CustomLoadingWidget(
+      //   duration: const Duration(seconds: 3),
+      //   onLoadingComplete: _onProcessingComplete,
+      // );
     }
 
     const pretendardFont = 'Pretendard';
@@ -531,6 +598,7 @@ class _PromptPageState extends State<PromptPage> {
              GestureDetector(
               onVerticalDragStart: (_) {},
               child: TextField(
+                controller: _textController,
                 style: const TextStyle(color: Colors.black, fontFamily: pretendardFont),
                 decoration: InputDecoration(
                   hintText: '캐릭터 모습',
@@ -979,6 +1047,7 @@ class _BottomSection extends StatelessWidget {
           children: [
             Positioned(
               bottom: 100,
+
               left: 30,
               right: 30,
               child: Container(
