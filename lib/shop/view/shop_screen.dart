@@ -15,6 +15,9 @@ class _ShopScreenState extends State<ShopScreen> {
   int _selectedItemIndex = -1; // 선택된 아이템 인덱스 (-1은 선택 없음)
   bool _showMyItemsOnly = false; // 나의 아이템만 보기 토글 상태
   bool _prefsLoaded = false; // SharedPreferences 로드 완료 여부
+  bool _isFirstLaunch = false; // 앱 첫 실행 여부
+  static const bool _resetOnStart = true; // 앱 재실행/핫 리스타트 시 상점 데이터 초기화
+  static bool _didResetThisSession = false; // 같은 앱 세션 내 1회만 초기화
   
   // 재화 관리 - 단순화
   int _currentCurrency = 2000;
@@ -53,14 +56,11 @@ class _ShopScreenState extends State<ShopScreen> {
       'assets/images/clothes_5.png',
       'assets/images/clothes_6.png',
     ],
-    // 무기 아이템들 (임시로 헤어 이미지 사용)
+    // 무기 아이템들
     [
-      'assets/images/hair_1.png',
-      'assets/images/hair_2.png',
-      'assets/images/hair_3.png',
-      'assets/images/hair_4.png',
-      'assets/images/hair_5.png',
-      'assets/images/hair_6.png',
+      'assets/images/glove.png',
+      'assets/images/bate.png',
+      'assets/images/hammer.png',
     ],
   ];
 
@@ -84,38 +84,72 @@ class _ShopScreenState extends State<ShopScreen> {
     _loadData();
   }
 
-  // 데이터 로드 (재화 로직 단순화)
+  // 데이터 로드 (앱 첫 실행시에만 초기화, 이후에는 저장된 데이터 불러오기)
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // 아이템/착용 상태는 기존대로 로드
-    final purchasedHair = prefs.getStringList('purchased_hair')?.map((e) => int.tryParse(e) ?? -1).where((e) => e >= 0).toList() ?? [];
-    final purchasedClothes = prefs.getStringList('purchased_clothes')?.map((e) => int.tryParse(e) ?? -1).where((e) => e >= 0).toList() ?? [];
-    final purchasedWeapons = prefs.getStringList('purchased_weapons')?.map((e) => int.tryParse(e) ?? -1).where((e) => e >= 0).toList() ?? [];
-    final appliedHair = prefs.getInt('applied_hair') ?? -1;
-    final appliedClothes = prefs.getInt('applied_clothes') ?? -1;
-    final appliedWeapons = prefs.getInt('applied_weapons') ?? -1;
+    if (_resetOnStart && !_didResetThisSession) {
+      await prefs.remove('user_currency');
+      await prefs.remove('purchased_hair');
+      await prefs.remove('purchased_clothes');
+      await prefs.remove('purchased_weapons');
+      await prefs.remove('applied_hair');
+      await prefs.remove('applied_clothes');
+      await prefs.remove('applied_weapons');
+      await prefs.setBool('is_first_launch', true); // 다음 분기에서 초기값 셋업
 
-    // ★ 재화: 저장값이 없거나 0/음수면 항상 2000으로 복구
-    int currency = prefs.getInt('user_currency') ?? 2000;
-    if (currency <= 0) {
-      currency = 2000;
-      await prefs.setInt('user_currency', currency);
-    } else if (!prefs.containsKey('user_currency')) {
-      // 키 자체가 없던 최초 실행 케이스: 읽은 기본값(2000)을 저장
-      await prefs.setInt('user_currency', currency);
+      _didResetThisSession = true; // 같은 세션에서 재진입 시 초기화 금지
     }
 
-    setState(() {
-      _currentCurrency = currency;
-      _purchasedItems[0] = purchasedHair;
-      _purchasedItems[1] = purchasedClothes;
-      _purchasedItems[2] = purchasedWeapons;
-      _appliedItems[0] = appliedHair;
-      _appliedItems[1] = appliedClothes;
-      _appliedItems[2] = appliedWeapons;
-      _prefsLoaded = true;
-    });
+    // 앱 첫 실행 여부 확인
+    _isFirstLaunch = prefs.getBool('is_first_launch') ?? true;
+
+    if (_isFirstLaunch) {
+      // 앱 첫 실행시에만 초기화
+      setState(() {
+        _currentCurrency = 2000;
+        _purchasedItems[0] = [];
+        _purchasedItems[1] = [];
+        _purchasedItems[2] = [];
+        _appliedItems[0] = -1;
+        _appliedItems[1] = -1;
+        _appliedItems[2] = -1;
+        _prefsLoaded = true;
+      });
+      
+      // SharedPreferences에 초기값 저장
+      await prefs.setInt('user_currency', 2000);
+      await prefs.setStringList('purchased_hair', []);
+      await prefs.setStringList('purchased_clothes', []);
+      await prefs.setStringList('purchased_weapons', []);
+      await prefs.setInt('applied_hair', -1);
+      await prefs.setInt('applied_clothes', -1);
+      await prefs.setInt('applied_weapons', -1);
+      
+      // 첫 실행 플래그를 false로 설정
+      await prefs.setBool('is_first_launch', false);
+    } else {
+      // 앱 재실행이 아닌 경우 저장된 데이터 불러오기
+      setState(() {
+        _currentCurrency = prefs.getInt('user_currency') ?? 2000;
+        
+        // 구매한 아이템들 불러오기
+        final purchasedHair = prefs.getStringList('purchased_hair')?.map((e) => int.tryParse(e) ?? -1).where((e) => e >= 0).toList() ?? [];
+        final purchasedClothes = prefs.getStringList('purchased_clothes')?.map((e) => int.tryParse(e) ?? -1).where((e) => e >= 0).toList() ?? [];
+        final purchasedWeapons = prefs.getStringList('purchased_weapons')?.map((e) => int.tryParse(e) ?? -1).where((e) => e >= 0).toList() ?? [];
+        
+        _purchasedItems[0] = purchasedHair;
+        _purchasedItems[1] = purchasedClothes;
+        _purchasedItems[2] = purchasedWeapons;
+        
+        // 착용 중인 아이템들 불러오기
+        _appliedItems[0] = prefs.getInt('applied_hair') ?? -1;
+        _appliedItems[1] = prefs.getInt('applied_clothes') ?? -1;
+        _appliedItems[2] = prefs.getInt('applied_weapons') ?? -1;
+        
+        _prefsLoaded = true;
+      });
+    }
   }
 
   // 데이터 저장 (재화 로직 단순화)
@@ -223,6 +257,28 @@ class _ShopScreenState extends State<ShopScreen> {
 
   // 현재 적용된 아이템들로 캐릭터 이미지 생성
   Widget _buildCharacterWithItems() {
+    // 무기 카테고리일 때는 무기만 표시
+    if (_selectedCategory == 2) {
+      if (_appliedItems[2] != null && _appliedItems[2]! >= 0) {
+        // 선택된 무기 표시
+        return Image.asset(
+          _categoryItems[2][_appliedItems[2]!],
+          width: 300,
+          height: 300,
+          fit: BoxFit.contain,
+        );
+      } else {
+        // 무기 미선택시 기본 무기 이미지 표시
+        return Image.asset(
+          _categoryItems[2][0], // 첫 번째 무기 이미지
+          width: 300,
+          height: 300,
+          fit: BoxFit.contain,
+        );
+      }
+    }
+    
+    // 헤어/옷 카테고리일 때는 캐릭터와 아이템 표시
     return Stack(
       alignment: Alignment.bottomCenter,
       children: [
@@ -269,18 +325,7 @@ class _ShopScreenState extends State<ShopScreen> {
               fit: BoxFit.contain,
             ),
           ),
-        // 무기 아이템 (캐릭터 위에 오버레이)
-        if (_appliedItems[2] != null && _appliedItems[2]! >= 0)
-          Positioned(
-            top: 20, // 무기는 가장 아래쪽에 위치
-            left: 0, // 좌우 중앙 정렬
-            child: Image.asset(
-              _categoryItems[2][_appliedItems[2]!],
-              width: 130, // 무기는 기본 크기
-              height: 130,
-              fit: BoxFit.contain,
-            ),
-          ),
+
       ],
     );
   }
@@ -374,22 +419,26 @@ class _ShopScreenState extends State<ShopScreen> {
 
           // 중앙 텍스트 (캐릭터 위)
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16.0),
+            padding: const EdgeInsets.only(top: 16.0, bottom: 32.0),
             child: Column(
               children: [
                 Text(
                   '${_categoryNames[_selectedCategory]} 고르기',
                   style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: 24,
                     fontWeight: FontWeight.w600,
                     color: Colors.black,
                   ),
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                  '옷을 입혀보세요',
-                  style: TextStyle(
-                    fontSize: 16,
+                const SizedBox(height: 8),
+                Text(
+                  _selectedCategory == 0 
+                      ? '헤어를 바꿔보세요'
+                      : _selectedCategory == 1 
+                          ? '옷을 입혀보세요'
+                          : '무기를 선택하세요',
+                  style: const TextStyle(
+                    fontSize: 18,
                     color: Colors.black,
                     fontWeight: FontWeight.w600,
                   ),
@@ -472,27 +521,41 @@ class _ShopScreenState extends State<ShopScreen> {
             child: Column(
               children: [
                 Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildShopItem(_categoryItems[_selectedCategory][0], 200, 0),
-                          _buildShopItem(_categoryItems[_selectedCategory][1], 200, 1),
-                          _buildShopItem(_categoryItems[_selectedCategory][2], 200, 2),
-                        ],
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildShopItem(_categoryItems[_selectedCategory][3], 200, 3),
-                          _buildShopItem(_categoryItems[_selectedCategory][4], 200, 4),
-                          _buildShopItem(_categoryItems[_selectedCategory][5], 200, 5),
-                        ],
-                      ),
-                    ],
-                  ),
+                  child: _selectedCategory == 2 
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _buildShopItem(_categoryItems[_selectedCategory][0], 200, 0),
+                                _buildShopItem(_categoryItems[_selectedCategory][1], 200, 1),
+                                _buildShopItem(_categoryItems[_selectedCategory][2], 200, 2),
+                              ],
+                            ),
+                          ],
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _buildShopItem(_categoryItems[_selectedCategory][0], 200, 0),
+                                _buildShopItem(_categoryItems[_selectedCategory][1], 200, 1),
+                                _buildShopItem(_categoryItems[_selectedCategory][2], 200, 2),
+                              ],
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _buildShopItem(_categoryItems[_selectedCategory][3], 200, 3),
+                                _buildShopItem(_categoryItems[_selectedCategory][4], 200, 4),
+                                _buildShopItem(_categoryItems[_selectedCategory][5], 200, 5),
+                              ],
+                            ),
+                          ],
+                        ),
                 ),
                 // 구입 버튼
                 Row(
@@ -582,6 +645,11 @@ class _ShopScreenState extends State<ShopScreen> {
       onTap: () {
         setState(() {
           _selectedCategory = categoryIndex;
+          // 무기 카테고리가 아닐 때는 무기 선택 상태와 착용 상태 초기화
+          if (categoryIndex != 2) {
+            _selectedItemIndex = -1;
+            _appliedItems[2] = -1; // 무기 착용 해제
+          }
         });
       },
       child: Container(
@@ -600,8 +668,13 @@ class _ShopScreenState extends State<ShopScreen> {
 
   Widget _buildShopItem(String imagePath, int price, int itemIndex) {
     final isSelected = _selectedItemIndex == itemIndex;
-    final isApplied = _appliedItems[_selectedCategory] == itemIndex;
+    final isApplied = _appliedItems[_selectedCategory] == itemIndex && _purchasedItems[_selectedCategory]!.contains(itemIndex);
     final isPurchased = _purchasedItems[_selectedCategory]!.contains(itemIndex);
+    
+    // 무기 카테고리일 때는 아이템 크기를 더 크게
+    final bool isWeaponCategory = _selectedCategory == 2;
+    final double itemWidth = isWeaponCategory ? 120.0 : 80.0;
+    final double itemHeight = isWeaponCategory ? 150.0 : 110.0;
     
     // 아이템 상태에 따른 색상과 테두리 결정
     Color itemBorderColor = Colors.transparent;
@@ -620,8 +693,8 @@ class _ShopScreenState extends State<ShopScreen> {
     // "나의 아이템만 보기"가 켜져있고 구매하지 않은 아이템이면 표시하지 않음
     if (_showMyItemsOnly && !isPurchased) {
       return Container(
-        width: 80,
-        height: 110,
+        width: itemWidth,
+        height: itemHeight,
         decoration: BoxDecoration(
           color: Colors.grey.shade200,
           borderRadius: BorderRadius.circular(8),
@@ -644,24 +717,33 @@ class _ShopScreenState extends State<ShopScreen> {
         setState(() {
           _selectedItemIndex = itemIndex;
 
-          // 모든 아이템을 미리보기로 착용 가능 (구매 여부와 관계없이)
-          if (_appliedItems[_selectedCategory] == itemIndex) {
-            // 이미 착용중인 아이템이면 해제
-            _appliedItems[_selectedCategory] = -1;
-          } else {
-            // 새로운 아이템 착용 (기존 착용 아이템은 자동 해제)
-            _appliedItems[_selectedCategory] = itemIndex;
-          }
-          
-          // 구매한 아이템의 착용 상태만 저장 (미리보기는 저장하지 않음)
           if (isPurchased) {
+            // 구매한 아이템: 착용/해제 가능
+            if (_appliedItems[_selectedCategory] == itemIndex) {
+              // 이미 착용중인 아이템이면 해제
+              _appliedItems[_selectedCategory] = -1;
+            } else {
+              // 새로운 아이템 착용 (기존 착용 아이템은 자동 해제)
+              _appliedItems[_selectedCategory] = itemIndex;
+            }
+            // 착용 상태 저장
             _saveData();
+          } else {
+            // 구매하지 않은 아이템: 미리보기만 가능 (실제 착용 상태는 저장하지 않음)
+            if (_appliedItems[_selectedCategory] == itemIndex) {
+              // 이미 미리보기 중인 아이템이면 해제
+              _appliedItems[_selectedCategory] = -1;
+            } else {
+              // 새로운 아이템 미리보기 (기존 착용 아이템은 자동 해제)
+              _appliedItems[_selectedCategory] = itemIndex;
+            }
+            // 미리보기는 저장하지 않음
           }
         });
       },
       child: Container(
-        width: 80,
-        height: 110,
+        width: itemWidth,
+        height: itemHeight,
         decoration: BoxDecoration(
           color: itemBackgroundColor, // 아이템 상태에 따른 배경색
           borderRadius: BorderRadius.circular(8),

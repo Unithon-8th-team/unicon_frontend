@@ -1,10 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'dart:ui'; // 블러 효과를 위해 추가
+import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'hit_screen.dart';
-import '../../home/view/home_screen.dart'; // 홈스크린 경로 추가
+import '../../home/view/home_screen.dart';
+import '../../my/premium/premium.dart';
 
 // --- 데이터 모델 ---
 const List<Map<String, dynamic>> customizationStepsData = [
@@ -18,8 +19,7 @@ const List<Map<String, dynamic>> customizationStepsData = [
   {'key': 'accessories', 'title': '악세사리', 'prefix': 'accessories_', 'count': 10, 'isOptional': true},
 ];
 
-
-// --- ✨ 재사용 가능 로딩 위젯 (UI 수정됨) ---
+// --- 재사용 가능 로딩 위젯 ---
 class CustomLoadingWidget extends StatefulWidget {
   final Duration duration;
   final VoidCallback onLoadingComplete;
@@ -93,9 +93,9 @@ class _CustomLoadingWidgetState extends State<CustomLoadingWidget> with TickerPr
                   ),
                 ),
               ),
-              // ✨ 핵심 수정: 자막 위치를 캐릭터 머리 위로 조정
+              // 자막 위치를 캐릭터 머리 위로 조정
               Positioned(
-                bottom: 185, // 캐릭터 높이(80) + 캐릭터 bottom(100) + 여백(5)
+                bottom: 185,
                 width: MediaQuery.of(context).size.width,
                 child: const Column(
                   children: [
@@ -127,7 +127,6 @@ class _CustomLoadingWidgetState extends State<CustomLoadingWidget> with TickerPr
   }
 }
 
-
 // --- 메인 로딩 스크린 ---
 class HitLoadingScreen extends StatefulWidget {
   const HitLoadingScreen({super.key});
@@ -136,28 +135,78 @@ class HitLoadingScreen extends StatefulWidget {
   State<HitLoadingScreen> createState() => _HitLoadingScreenState();
 }
 
-class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProviderStateMixin {
+class _HitLoadingScreenState extends State<HitLoadingScreen>
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   late AnimationController _modalController;
   late Animation<double> _modalAnimation;
+  PageController? _pageController;
   
   double _dragOffset = 0.0;
   bool _isAppLoading = true;
   bool _showModal = false;
-  int _currentMainPage = 0;
-  bool _isPremiumMember = false;
-  String? _selectedCharacter;
+  int _currentModalPage = 0; // 0: 멤버십, 1: 캐릭터 선택
+  String? _selectedCharacter; // 선택된 캐릭터
+  bool _isPremiumMember = false; // 프리미엄 멤버십 여부
+  bool _isExiting = false; // 홈으로 이동 중 중복 네비게이션 방지
 
   @override
   void initState() {
     super.initState();
+
+    // WidgetsBindingObserver 등록
+    WidgetsBinding.instance.addObserver(this);
+
+    // 프리미엄 멤버십 상태 확인
     _checkPremiumMembership();
     _modalController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _modalAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(CurvedAnimation(parent: _modalController, curve: Curves.easeOutBack));
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 화면이 다시 표시될 때마다 프리미엄 멤버십 상태 확인
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPremiumMembership();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // 앱이 다시 활성화될 때 프리미엄 상태 확인
+      _checkPremiumMembership();
+    }
+  }
+
   void _checkPremiumMembership() async {
     final prefs = await SharedPreferences.getInstance();
-    _isPremiumMember = prefs.getBool('is_premium_member') ?? true;
+    
+    final isPremium = prefs.getBool('is_premium_member') ?? false;
+    final expiryTime = prefs.getInt('membership_expiry') ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    
+    // 만료된 프리미엄 멤버십 체크
+    if (isPremium && expiryTime > 0 && now > expiryTime) {
+      // 만료된 경우 프리미엄 상태 해제
+      await prefs.setBool('is_premium_member', false);
+      await prefs.remove('membership_type');
+      await prefs.remove('membership_expiry');
+      
+      if (mounted) {
+        setState(() {
+          _isPremiumMember = false;
+        });
+      }
+    } else if (isPremium != _isPremiumMember) {
+      // 프리미엄 상태가 변경된 경우
+      if (mounted) {
+        setState(() {
+          _isPremiumMember = isPremium;
+        });
+      }
+    }
   }
   
   void _onLoadingComplete() {
@@ -170,21 +219,69 @@ class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProvider
     }
   }
 
-  void _goToPage(int page) {
-    setState(() {
-      _currentMainPage = page;
-    });
+  void _nextModalPage() {
+    if (_currentModalPage < 1 && _pageController != null) {
+      _pageController!.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      setState(() {
+        _currentModalPage = 1;
+      });
+    }
   }
-  
-  void _startHitGame() {
+
+  void _previousModalPage() {
+    if (_currentModalPage > 0 && _pageController != null) {
+      _pageController!.previousPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      setState(() {
+        _currentModalPage = 0;
+      });
+    }
+  }
+
+  void _exitToHome() {
+    if (_isExiting || !mounted) return;
+    _isExiting = true;
+
+    // 진행 중인 애니메이션 중지
+    _modalController.stop();
+
+    // 홈 화면으로 직접 이동하고 모든 스택 제거
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const HomeScreen()),
+      (route) => false,
+    );
+  }
+
+  Future<void> _startHitGame() async {
+    if (_isExiting) return;
+    if (_selectedCharacter == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selected_character', _selectedCharacter!);
     if (context.mounted) {
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HitScreen(selectedCharacter: _selectedCharacter)));
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => HitScreen(
+            selectedCharacter: _selectedCharacter,
+          ),
+        ),
+        (route) => false,
+      );
     }
   }
 
   @override
   void dispose() {
     _modalController.dispose();
+    _pageController?.dispose();
+    
+    // WidgetsBindingObserver 해제
+    WidgetsBinding.instance.removeObserver(this);
+    
     super.dispose();
   }
 
@@ -226,7 +323,7 @@ class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProvider
       animation: _modalAnimation,
       builder: (context, child) {
         final screenH = MediaQuery.of(context).size.height;
-        final modalH = screenH * 0.95;
+        final modalH = screenH * 0.85;
         return Positioned(
           bottom: -modalH * _modalAnimation.value - _dragOffset,
           left: 0,
@@ -270,97 +367,315 @@ class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProvider
   }
 
   Widget _getCurrentPageWidget() {
-    switch (_currentMainPage) {
+    switch (_currentModalPage) {
       case 0:
         return Container(key: const ValueKey<int>(0), child: _buildMembershipPage());
       case 1:
         return Container(key: const ValueKey<int>(1), child: _buildCharacterSelectionPage());
-      case 2:
-        return Container(key: const ValueKey<int>(2), child: _buildPromptPage());
-      case 3:
-        return Container(key: const ValueKey<int>(3), child: CharacterCustomizationFlow(onExit: () => _goToPage(0)));
       default:
         return Container(key: const ValueKey<int>(0), child: _buildMembershipPage());
     }
   }
 
+  // 멤버십 가입 페이지
   Widget _buildMembershipPage() {
-    return Padding(
+    return _buildPremiumMemberModal();
+  }
+
+  // 프리미엄 멤버용 모달
+  Widget _buildPremiumMemberModal() {
+    return Container(
       padding: const EdgeInsets.all(20),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Spacer(),
-          _buildOptionButton(
-            title: '기본',
-            subtitle: '기본 버전',
-            color: Colors.lightBlue.shade300,
-            onTap: () => _goToPage(1),
+          // 상단 네비게이션 바
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // 왼쪽 화살표 아이콘
+              GestureDetector(
+                onTap: _exitToHome,
+                child: Icon(
+                  Icons.arrow_back,
+                  color: Colors.white70,
+                  size: 24,
+                ),
+              ),
+              
+              // 오른쪽 X 아이콘
+              GestureDetector(
+                onTap: _exitToHome,
+                child: Icon(
+                  Icons.close,
+                  color: Colors.white70,
+                  size: 24,
+                ),
+              ),
+            ],
           ),
+          
           const SizedBox(height: 30),
+          
+          // 프리미엄 멤버십 전용 헤더 텍스트
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('프리미엄 멤버십 전용', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.orange.shade400)),
+              Text(
+                '캐릭터 생성 옵션',
+                style: TextStyle(
+                  fontSize: 24,
+                  color: Colors.grey.shade300,
+                ),
+              ),
+              const SizedBox(height: 30),
+            ],
+          ),
+          
+          // 기본 섹션
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '기본',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.lightBlue.shade300,
+                ),
+              ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () {
+                  // 기본 버전 버튼을 눌렀을 때 캐릭터 선택 페이지로 이동
+                  _nextModalPage();
+                },
+                child: Container(
+                  width: double.infinity,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A2A2A),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      '기본 버전',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 30),
+          
+          // 프리미엄 멤버십 전용 섹션
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '프리미엄 멤버십 전용',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.orange.shade400,
+                ),
+              ),
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(child: _buildPremiumOptionButton(text: '프롬프트 입력하기', onTap: () => _goToPage(2))),
+                  // 프롬프트 입력하기 버튼
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _isPremiumMember ? () {
+                        // 프리미엄 사용자만 사용 가능
+                        // TODO: 프롬프트 입력 기능 구현
+                      } : () {
+                        // 일반 사용자는 프리미엄 화면으로 이동
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PremiumScreen(),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: _isPremiumMember 
+                              ? const Color(0xFF2A2A2A)
+                              : Colors.grey.shade600,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '프롬프트 입력하기',
+                            style: TextStyle(
+                              color: _isPremiumMember 
+                                  ? Colors.white
+                                  : Colors.grey.shade400,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(width: 12),
-                  Expanded(child: _buildPremiumOptionButton(text: '나만의 커스터마이징 하기', onTap: () => _goToPage(3))),
+                  // 나만의 커스터마이징 하기 버튼
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _isPremiumMember ? () {
+                        // 프리미엄 사용자만 사용 가능
+                        // TODO: 커스터마이징 기능 구현
+                      } : () {
+                        // 일반 사용자는 프리미엄 화면으로 이동
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const PremiumScreen(),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        height: 80,
+                        decoration: BoxDecoration(
+                          color: _isPremiumMember 
+                              ? const Color(0xFF2A2A2A)
+                              : Colors.grey.shade600,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '나만의 커스터마이징 하기',
+                            style: TextStyle(
+                              color: _isPremiumMember 
+                                  ? Colors.white
+                                  : Colors.grey.shade400,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ],
           ),
-          const Spacer(flex: 2),
+          
+          const Spacer(),
         ],
       ),
     );
   }
 
+  // 캐릭터 선택 페이지
   Widget _buildCharacterSelectionPage() {
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 40, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return SingleChildScrollView(
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '어떤 캐릭터를 원하시나요?',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 24),
+            
+            // 교수님 카테고리
+            _buildCharacterCategory(
+              title: '교수님',
+              characters: [
+                {'id': 'pro_m', 'image': 'assets/images/pro_m.png'},
+                {'id': 'pro_f', 'image': 'assets/images/pro_f.png'},
+              ],
+            ),
+            
+            const SizedBox(height: 20),
+            
+            // 팀플 조원 카테고리
+            _buildCharacterCategory(
+              title: '팀플 조원',
+              characters: [
+                {'id': 'stu_m', 'image': 'assets/images/stu_m.png'},
+                {'id': 'stu_f', 'image': 'assets/images/stu_f.png'},
+              ],
+            ),
+            
+            const SizedBox(height: 20),
+            
+            // 직장 상사 카테고리
+            _buildCharacterCategory(
+              title: '직장 상사',
+              characters: [
+                {'id': 'com_m', 'image': 'assets/images/com_m.png'},
+                {'id': 'com_f', 'image': 'assets/images/com_f.png'},
+              ],
+            ),
+            
+            // 하단 여백 추가
+            const SizedBox(height: 20),
+            
+            // 하단 버튼
+            Container(
+              padding: const EdgeInsets.all(20),
+              child: Row(
                 children: [
-                  const Text('어떤 캐릭터를 원하시나요?', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-                  const SizedBox(height: 24),
-                  _buildCharacterCategory(title: '교수님', characters: [{'id': 'pro_m', 'image': 'assets/images/pro_m.png', 'name': '남성 교수님'}, {'id': 'pro_f', 'image': 'assets/images/pro_f.png', 'name': '여성 교수님'}]),
-                  const SizedBox(height: 20),
-                  _buildCharacterCategory(title: '팀플 조원', characters: [{'id': 'stu_m', 'image': 'assets/images/stu_m.png', 'name': '남성 학생'}, {'id': 'stu_f', 'image': 'assets/images/stu_f.png', 'name': '여성 학생'}]),
-                  const SizedBox(height: 20),
-                  _buildCharacterCategory(title: '직장 상사', characters: [{'id': 'com_m', 'image': 'assets/images/com_m.png', 'name': '남성 상사'}, {'id': 'com_f', 'image': 'assets/images/com_f.png', 'name': '여성 상사'}]),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _previousModalPage,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        side: BorderSide(color: Colors.blue.shade400),
+                      ),
+                      child: const Text(
+                        '이전',
+                        style: TextStyle(color: Colors.blue, fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _selectedCharacter != null ? _startHitGame : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _selectedCharacter != null
+                            ? Colors.blue
+                            : Colors.grey.shade600,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      child: Text(
+                        '때려줄게 시작!',
+                        style: TextStyle(
+                          color: _selectedCharacter != null
+                              ? Colors.white
+                              : Colors.grey.shade400,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-        ),
-         Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _goToPage(0),
-                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: BorderSide(color: Colors.blue.shade400)),
-                  child: const Text('이전', style: TextStyle(color: Colors.blue, fontSize: 16, fontWeight: FontWeight.w600)),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _selectedCharacter != null ? _startHitGame : null,
-                  style: ElevatedButton.styleFrom(backgroundColor: _selectedCharacter != null ? Colors.blue : Colors.grey.shade600, padding: const EdgeInsets.symmetric(vertical: 16)),
-                  child: Text('때려줄게 시작!', style: TextStyle(color: _selectedCharacter != null ? Colors.white : Colors.grey.shade400, fontSize: 16, fontWeight: FontWeight.w600)),
-                ),
-              ),
-            ],
-          ),
+          ],
         ),
       ],
     );
@@ -370,7 +685,6 @@ class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProvider
     return PromptPage(
       onExit: () => _goToPage(0),
       onComplete: (Map<String, String?> generatedParts) {
-        print('onComplete 실행');
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => FinalConfirmationPage(
@@ -412,9 +726,12 @@ class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProvider
                   ),
                   child: Column(
                     children: [
-                      Image.asset(character['image']!, width: 60, height: 60, fit: BoxFit.contain, errorBuilder: (c,e,s) => Container(height: 60, color: Colors.grey.shade700)),
-                      const SizedBox(height: 8),
-                      Text(character['name']!, style: TextStyle(fontSize: 12, color: isSelected ? Colors.blue.shade300 : Colors.grey.shade300, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal), textAlign: TextAlign.center),
+                      Image.asset(
+                        character['image']!,
+                        width: 120,
+                        height: 140,
+                        fit: BoxFit.contain,
+                      ),
                     ],
                   ),
                 ),
@@ -425,7 +742,7 @@ class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProvider
       ],
     );
   }
-
+      
   Widget _buildOptionButton({required String title, required String subtitle, required Color color, required VoidCallback onTap}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1092,3 +1409,4 @@ class _BottomSection extends StatelessWidget {
     );
   }
 }
+

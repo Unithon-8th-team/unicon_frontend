@@ -90,8 +90,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
           padding: const EdgeInsets.only(top: 10.0),
           child: GestureDetector(
             onTap: () {
-              // 현재 화면을 닫고 이전 화면(my_screen.dart)으로 돌아갑니다.
-              Navigator.of(context).pop();
+              Navigator.of(context).pop(false); // 명시적으로 취소 결과 전달
             },
             child: Image.asset(
               'assets/icons/x.png',
@@ -434,6 +433,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
 
   // 멤버십 가입 처리
   Future<void> _handleMembershipPurchase() async {
+    final pageContext = context;
     try {
       // 로딩 표시
       showDialog(
@@ -459,9 +459,8 @@ class _PremiumScreenState extends State<PremiumScreen> {
       // 실제 결제 로직은 여기에 구현 (현재는 시뮬레이션)
       await Future.delayed(const Duration(seconds: 2));
 
-      // SharedPreferences에 멤버십 상태 저장
+      // SharedPreferences에 멤버십 정보 저장 (세션 프리미엄은 저장하지 않음)
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('is_premium_member', true);
       await prefs.setString('membership_type', _selectedMembership.name);
       await prefs.setInt('membership_expiry', DateTime.now().add(
         _selectedMembership == MembershipType.yearly 
@@ -492,8 +491,10 @@ class _PremiumScreenState extends State<PremiumScreen> {
               actions: [
                 TextButton(
                   onPressed: () {
+                    // 1) 성공 다이얼로그 닫기 (현재 다이얼로그 컨텍스트)
                     Navigator.of(context).pop();
-                    Navigator.of(context).pop(); // PremiumScreen 닫기
+                    // 2) PremiumScreen 닫기 + 결과 true 전달 (페이지 컨텍스트 사용)
+                    Navigator.of(pageContext).pop(true);
                   },
                   child: const Text(
                     '확인',
@@ -504,6 +505,12 @@ class _PremiumScreenState extends State<PremiumScreen> {
             );
           },
         );
+      }
+
+      // 프리미엄 상태 변경을 알림 (세션 플래그만 상위로 전달, 영구 저장 안 함)
+      if (mounted) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('premium_status_changed', DateTime.now().millisecondsSinceEpoch);
       }
     } catch (e) {
       // 로딩 다이얼로그 닫기
