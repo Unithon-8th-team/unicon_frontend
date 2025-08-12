@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../service/chat_service.dart';
 import 'chat_initial_screen.dart';
+import '../../my/premium/premium.dart';
 
 class ChatScreen extends StatefulWidget {
   final int userAnger;
@@ -541,9 +542,43 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             '대화 횟수 한도 도달',
             style: TextStyle(color: Colors.white),
           ),
-          content: const Text(
-            '오늘의 무료 AI 대화 횟수를 모두 사용했습니다.\n코인을 사용하거나 구매하여 대화 횟수를 늘려보세요!',
-            style: TextStyle(color: Colors.white70),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  '오늘의 무료 AI 대화 횟수를 모두 사용했습니다.\n코인을 사용하거나 구매하여 대화 횟수를 늘려보세요!',
+                  style: TextStyle(color: Colors.white70),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                // 프리미엄 멤버십 버튼
+                GestureDetector(
+                  onTap: () {
+                    Navigator.of(context).pop(); // 팝업 닫기
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const PremiumScreen(),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    width: double.infinity,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Image.asset(
+                      'assets/images/premium_btn.png',
+                      
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
