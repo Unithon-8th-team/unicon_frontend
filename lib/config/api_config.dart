@@ -8,8 +8,8 @@ class ApiConfig {
   // API 엔드포인트
   static const String kakaoAuth = '/auth/kakao';
   static const String userProfile = '/users';
-  static const String aiChat = '/ai/chat';
-  static const String aiGenerateImage = '/ai/generate-image';
+  static const String aiChat = '/ai'; // /ai/:userId/chat 형태로 사용
+  static const String aiGenerateImage = '/ai'; // /ai/:userId/generate-image-code 형태로 사용
   static const String shopItems = '/shop/items';
   static const String shopPurchase = '/shop/purchase';
   static const String userInventory = '/shop/users';

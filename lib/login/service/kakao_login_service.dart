@@ -18,8 +18,8 @@ class KakaoLoginService {
   static const String _tokenExpiryKey = 'token_expiry';
   
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: 'http://10.0.2.2:3000',
-    //baseUrl: 'http://10.21.37.78:3000',
+    baseUrl: 'http://10.0.2.2:3000', // Android 에뮬레이터용
+    //baseUrl: 'http://192.168.123.108:3000', // 실제 안드로이드 기기용
     connectTimeout: const Duration(seconds: 10),
     receiveTimeout: const Duration(seconds: 10),
   ));
@@ -33,8 +33,8 @@ class KakaoLoginService {
         context,
         MaterialPageRoute(
           builder: (context) => OAuthWebViewScreen(
-            initialUrl: 'http://10.0.2.2:3000/auth/kakao',
-            //initialUrl: 'http://10.21.37.78:3000/auth/kakao',
+            initialUrl: 'http://10.0.2.2:3000/auth/kakao', // Android 에뮬레이터용
+            //initialUrl: 'http://192.168.123.108:3000/auth/kakao', // 실제 안드로이드 기기용
             onSuccess: (accessToken, refreshToken) async {
               print('🎉 OAuth 성공! 토큰: ${accessToken.substring(0, 20)}...');
               await _saveUserData(accessToken, refreshToken);

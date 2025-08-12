@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+import 'dart:math' as math;
+import 'package:flutter/services.dart';
+import '../../home/view/home_screen.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class HitScreen extends StatefulWidget {
   final String? selectedCharacter;
@@ -12,7 +17,30 @@ class HitScreen extends StatefulWidget {
   State<HitScreen> createState() => _HitScreenState();
 }
 
-class _HitScreenState extends State<HitScreen> {
+class _HitScreenState extends State<HitScreen> with TickerProviderStateMixin {
+  final GlobalKey _characterStackKey = GlobalKey();
+
+  // 탭 이펙트(리플)
+  final List<_TapRipple> _ripples = [];
+
+  // 효과음
+  late final AudioPlayer _sfxPlayer;
+
+  @override
+  void initState() {
+    super.initState();
+    _sfxPlayer = AudioPlayer()..setReleaseMode(ReleaseMode.stop);
+  }
+
+  @override
+  void dispose() {
+    for (final r in _ripples) {
+      r.controller.dispose();
+    }
+    _sfxPlayer.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -34,8 +62,7 @@ class _HitScreenState extends State<HitScreen> {
                 child: _buildCharacterSection(),
               ),
               
-              // 하단 정보
-              _buildBottomSection(),
+    
             ],
           ),
         ),
@@ -49,7 +76,12 @@ class _HitScreenState extends State<HitScreen> {
       child: Row(
         children: [
           GestureDetector(
-            onTap: () => Navigator.pop(context),
+            onTap: () {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const HomeScreen()),
+                (route) => false,
+              );
+            },
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -70,128 +102,66 @@ class _HitScreenState extends State<HitScreen> {
 
   Widget _buildCharacterSection() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // 선택된 캐릭터 이미지
-          Container(
-            width: 200,
-            height: 200,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withOpacity(0.3),
-                width: 3,
-              ),
-            ),
-            child: ClipOval(
-              child: Image.asset(
-                _getCharacterImage(),
-                width: 180,
-                height: 180,
-                fit: BoxFit.contain,
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 30),
-          
-          // 캐릭터 이름
-          Text(
-            _getCharacterName(),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          
-          const SizedBox(height: 10),
-          
-          // 설명 텍스트
-          const Text(
-            '이제 이 캐릭터를 때려서\n스트레스를 해소하세요!',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+      child: SizedBox(
+        width: 380,
+        height: 380,
+        child: Stack(
+          key: _characterStackKey,
+          clipBehavior: Clip.none,
+          children: [
+            // 탭 리플 이펙트들
+            ..._ripples.map((r) => Positioned(
+                  left: r.position.dx - r.size.value / 2,
+                  top: r.position.dy - r.size.value / 2,
+                  child: Opacity(
+                    opacity: r.opacity.value,
+                    child: Container(
+                      width: r.size.value,
+                      height: r.size.value,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.35),
+                      ),
+                    ),
+                  ),
+                )),
 
-  Widget _buildBottomSection() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        children: [
-          // 시작 버튼
-          Container(
-            width: double.infinity,
-            height: 56,
-            decoration: BoxDecoration(
-              color: Colors.blue,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.blue.withOpacity(0.3),
-                  blurRadius: 10,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: const Center(
-              child: Text(
-                '게임 시작!',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          
-          const SizedBox(height: 20),
-          
-          // 선택된 캐릭터 정보
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.person,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '선택된 캐릭터: ${_getCharacterName()}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+            // 캐릭터 이미지 (고정 위치)
+            Center(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: (details) async {
+                  // 정확한 좌표: Stack 기준의 로컬 좌표로 변환
+                  final box = _characterStackKey.currentContext?.findRenderObject() as RenderBox?;
+                  final local = box != null
+                      ? box.globalToLocal(details.globalPosition)
+                      : details.localPosition;
+                  _spawnRipple(local);
+
+                  // 햅틱 + 효과음
+                  HapticFeedback.mediumImpact();
+                  _playHitSfx();
+                },
+                child: ClipOval(
+                  child: Image.asset(
+                    _getCharacterImage(),
+                    width: 380,
+                    height: 380,
+                    fit: BoxFit.contain,
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
+
   String _getCharacterImage() {
-    switch (widget.selectedCharacter) {
+    final key = (widget.selectedCharacter ?? 'pro_m').toLowerCase().trim();
+    switch (key) {
       case 'pro_m':
         return 'assets/images/pro_m.png';
       case 'pro_f':
@@ -209,22 +179,67 @@ class _HitScreenState extends State<HitScreen> {
     }
   }
 
-  String _getCharacterName() {
-    switch (widget.selectedCharacter) {
-      case 'pro_m':
-        return '남성 교수님';
-      case 'pro_f':
-        return '여성 교수님';
-      case 'stu_m':
-        return '남성 학생';
-      case 'stu_f':
-        return '여성 학생';
-      case 'com_m':
-        return '남성 상사';
-      case 'com_f':
-        return '여성 상사';
-      default:
-        return '기본 캐릭터';
+
+
+  void _spawnRipple(Offset localPos) {
+    // 리플 애니메이션: 0 → 140px, opacity 0.6 → 0.0, 250ms
+    final controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    );
+    final size = Tween<double>(begin: 0, end: 140).animate(
+      CurvedAnimation(parent: controller, curve: Curves.easeOutCubic),
+    );
+    final opacity = Tween<double>(begin: 0.6, end: 0.0).animate(
+      CurvedAnimation(parent: controller, curve: Curves.easeOut),
+    );
+
+    final ripple = _TapRipple(
+      position: localPos,
+      controller: controller,
+      size: size,
+      opacity: opacity,
+    );
+
+    controller.addListener(() {
+      setState(() {});
+    });
+    controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        controller.dispose();
+        setState(() {
+          _ripples.remove(ripple);
+        });
+      }
+    });
+
+    setState(() {
+      _ripples.add(ripple);
+    });
+
+    controller.forward();
+  }
+
+  Future<void> _playHitSfx() async {
+    try {
+      await _sfxPlayer.stop();
+      await _sfxPlayer.play(AssetSource('sfx/hit.mp3'));
+    } catch (e) {
+      // 무음 환경/미등록 에셋일 수 있으니 조용히 무시
     }
   }
+}
+
+class _TapRipple {
+  _TapRipple({
+    required this.position,
+    required this.controller,
+    required this.size,
+    required this.opacity,
+  });
+
+  final Offset position;
+  final AnimationController controller;
+  final Animation<double> size;
+  final Animation<double> opacity;
 }
