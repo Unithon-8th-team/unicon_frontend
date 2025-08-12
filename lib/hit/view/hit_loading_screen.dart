@@ -147,7 +147,6 @@ class _HitLoadingScreenState extends State<HitLoadingScreen> with TickerProvider
   bool _isPremiumMember = false;
   String? _selectedCharacter;
 
-
   @override
   void initState() {
     super.initState();
